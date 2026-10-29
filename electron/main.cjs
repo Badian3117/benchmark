@@ -8,8 +8,12 @@ const { pathToFileURL } = require('node:url');
 
 const DIST = path.join(__dirname, '..', 'dist');
 const DATA_DIR = path.join(app.getPath('userData'), 'data');
-const DB_FILE = path.join(DATA_DIR, 'benchmark.sqlite');
 const BACKUP_DIR = path.join(DATA_DIR, 'backups');
+/** one database per signed-in user ('user-<uuid>'), 'benchmark' when standalone */
+const dbFile = (name) => {
+  if (!/^[A-Za-z0-9-]{1,64}$/.test(String(name))) throw new Error('bad database name');
+  return path.join(DATA_DIR, `${name}.sqlite`);
+};
 const KEEP_BACKUPS = 30;
 
 protocol.registerSchemesAsPrivileged([
@@ -31,16 +35,30 @@ function atomicWrite(file, bytes) {
   fs.renameSync(tmp, file);
 }
 
-/** One backup per day (first save of the day), keeping the last KEEP_BACKUPS. */
-function dailyBackup() {
-  if (!fs.existsSync(DB_FILE)) return;
+/** One backup per database per day (first save of the day), keeping the last KEEP_BACKUPS of each. */
+function dailyBackup(name) {
+  const file = dbFile(name);
+  if (!fs.existsSync(file)) return;
   fs.mkdirSync(BACKUP_DIR, { recursive: true });
   const day = new Date().toISOString().slice(0, 10);
-  const target = path.join(BACKUP_DIR, `benchmark-${day}.sqlite`);
-  if (!fs.existsSync(target)) fs.copyFileSync(DB_FILE, target);
-  const all = fs.readdirSync(BACKUP_DIR).filter((f) => f.endsWith('.sqlite')).sort();
-  for (const f of all.slice(0, Math.max(0, all.length - KEEP_BACKUPS))) fs.rmSync(path.join(BACKUP_DIR, f));
+  const target = path.join(BACKUP_DIR, `${name}-${day}.sqlite`);
+  if (!fs.existsSync(target)) fs.copyFileSync(file, target);
+  const mine = fs.readdirSync(BACKUP_DIR).filter((f) => f.startsWith(name + '-') && /\d{4}-\d{2}-\d{2}\.sqlite$/.test(f)).sort();
+  for (const f of mine.slice(0, Math.max(0, mine.length - KEEP_BACKUPS))) fs.rmSync(path.join(BACKUP_DIR, f));
 }
+
+// ---- Microsoft sign-in comes back as benchmark://auth/callback?code=… ----
+const PROTOCOL = 'benchmark';
+if (process.defaultApp) app.setAsDefaultProtocolClient(PROTOCOL, process.execPath, [path.resolve(process.argv[1] || '.')]);
+else app.setAsDefaultProtocolClient(PROTOCOL);
+let pendingAuthUrl = process.argv.find((a) => a.startsWith(PROTOCOL + '://')) || null;
+let rendererReady = false;
+function deliverAuth(url) {
+  if (!url || !url.startsWith(PROTOCOL + '://')) return;
+  if (win && rendererReady) win.webContents.send('auth:callback', url);
+  else pendingAuthUrl = url;
+}
+app.on('open-url', (e, url) => { e.preventDefault(); deliverAuth(url); });
 
 let win;
 let closing = false;
@@ -94,13 +112,24 @@ app.whenReady().then(() => {
 
   fs.mkdirSync(DATA_DIR, { recursive: true });
 
-  ipcMain.handle('db:load', () => (fs.existsSync(DB_FILE) ? new Uint8Array(fs.readFileSync(DB_FILE)) : null));
-  ipcMain.handle('db:save', (_e, bytes) => {
-    dailyBackup();
-    atomicWrite(DB_FILE, Buffer.from(bytes));
+  ipcMain.handle('db:load', (_e, name) => {
+    const file = dbFile(name);
+    return fs.existsSync(file) ? new Uint8Array(fs.readFileSync(file)) : null;
+  });
+  ipcMain.handle('db:save', (_e, name, bytes) => {
+    dailyBackup(name);
+    atomicWrite(dbFile(name), Buffer.from(bytes));
   });
   ipcMain.on('app:version', (e) => (e.returnValue = app.getVersion()));
-  ipcMain.handle('db:location', () => DB_FILE);
+  ipcMain.handle('db:location', () => DATA_DIR);
+  ipcMain.handle('app:openExternal', (_e, url) => {
+    if (!/^https:\/\//.test(String(url))) throw new Error('only https links');
+    return shell.openExternal(url);
+  });
+  ipcMain.on('auth:ready', () => {
+    rendererReady = true;
+    if (pendingAuthUrl) { win.webContents.send('auth:callback', pendingAuthUrl); pendingAuthUrl = null; }
+  });
   ipcMain.handle('db:showFolder', () => shell.openPath(DATA_DIR));
   ipcMain.handle('file:open', async (_e, filters) => {
     const r = await dialog.showOpenDialog(win, { properties: ['openFile'], filters });
@@ -124,7 +153,8 @@ app.whenReady().then(() => {
   createWindow();
 });
 
-app.on('second-instance', () => {
+app.on('second-instance', (_e, argv) => {
+  deliverAuth(argv.find((a) => a.startsWith(PROTOCOL + '://')));
   if (win) {
     if (win.isMinimized()) win.restore();
     win.focus();

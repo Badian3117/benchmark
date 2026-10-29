@@ -6,6 +6,9 @@ import { desktop, pickFile, saveBytes } from '../../data/persistence.ts';
 import { Store } from '../../data/store.ts';
 import { useI18n } from '../../i18n/index.ts';
 import { useApp } from '../context.ts';
+import { useSession } from '../session.ts';
+import { canWriteAnything } from '../../engine/permissions.ts';
+import { SITE_SCOPE } from '../../engine/schema.ts';
 
 async function loadExcelJS() {
   const mod = await import('exceljs');
@@ -19,6 +22,9 @@ export function DataPage() {
   const [msg, setMsg] = useState<{ kind: 'ok' | 'err' | 'warn'; text: string }[]>([]);
   const [busy, setBusy] = useState(false);
   const [location, setLocation] = useState('');
+  const { mode, who } = useSession();
+  const connected = mode === 'connected';
+  const [defaultSite, setDefaultSite] = useState(connected ? (who?.sites[0] ?? ds.settings.lists.sites[0] ?? '') : '');
   useEffect(() => { desktop?.dataLocation().then(setLocation); }, []);
 
   const run = async (fn: () => Promise<void>) => {
@@ -36,6 +42,13 @@ export function DataPage() {
     const wb = new ExcelJS.Workbook();
     await wb.xlsx.load(f.bytes.buffer.slice(f.bytes.byteOffset, f.bytes.byteOffset + f.bytes.byteLength) as ArrayBuffer);
     const rep = importWorkbook(wb, todayISO());
+    // a workbook usually holds one site: attach records without a site to the chosen one
+    if (defaultSite) {
+      for (const p of rep.dataset.logs.projects) p.site ??= defaultSite;
+      for (const [k, rows] of Object.entries(rep.dataset.logs))
+        if (SITE_SCOPE[k as LogKey] === 'site' || SITE_SCOPE[k as LogKey] === 'projectOrSite') for (const r of rows) if (!r.project) r.site ??= defaultSite;
+      if (!rep.dataset.settings.lists.sites.includes(defaultSite)) rep.dataset.settings.lists.sites.push(defaultSite);
+    }
     const summary = Object.entries(rep.counts).map(([k, n]) => `${d.logs[k as LogKey].title} ${n}`).join(', ');
     if (mode === 'replace') {
       if (!confirm(d.data.replaceConfirm)) return;
@@ -43,6 +56,7 @@ export function DataPage() {
       rep.dataset.settings.userName = ds.settings.userName;
       store.replaceAll(rep.dataset, `import ${f.name}`);
     } else {
+      if (connected) rep.dataset.settings = ds.settings; // org settings are not changed by an import
       // merge: rows whose human id (code) already exists keep their existing record id, so they are updated, not duplicated
       const merged: Partial<Record<LogKey, Row[]>> = {};
       for (const def of LOGS) {
@@ -104,8 +118,17 @@ export function DataPage() {
           <h2>{d.data.importXlsx}</h2>
           <p className="muted">{d.data.importHint}</p>
           <div className="toolbar">
-            <button className="btn primary" disabled={busy} onClick={() => importXlsx('replace')}>{d.data.replace}</button>
-            <button className="btn" disabled={busy} onClick={() => importXlsx('merge')}>{d.data.merge}</button>
+            {ds.settings.lists.sites.length > 0 && (
+              <label className="ctl">
+                <span>{d.common.site}</span>
+                <select value={defaultSite} onChange={(e) => setDefaultSite(e.target.value)}>
+                  {!connected && <option value="">—</option>}
+                  {(who?.role === 'pm' ? who.sites : ds.settings.lists.sites).map((s) => <option key={s}>{s}</option>)}
+                </select>
+              </label>
+            )}
+            {!connected && <button className="btn primary" disabled={busy} onClick={() => importXlsx('replace')}>{d.data.replace}</button>}
+            {canWriteAnything(who) && <button className={`btn ${connected ? 'primary' : ''}`} disabled={busy} onClick={() => importXlsx('merge')}>{d.data.merge}</button>}
           </div>
         </div>
         <div className="card">
@@ -118,17 +141,19 @@ export function DataPage() {
           <p className="muted">{d.data.backupHint}</p>
           <div className="toolbar">
             <button className="btn primary" disabled={busy} onClick={backup}>{d.data.backup}</button>
-            <button className="btn" disabled={busy} onClick={restore}>{d.data.restore}</button>
+            {!connected && <button className="btn" disabled={busy} onClick={restore}>{d.data.restore}</button>}
             {desktop && <button className="btn" onClick={() => desktop!.showDataFolder()}>{d.data.showFolder}</button>}
           </div>
           {location && <p className="faint" style={{ fontSize: 12, marginTop: 8 }}>{d.data.location}: {location}</p>}
         </div>
-        <div className="card">
-          <div className="toolbar" style={{ margin: 0 }}>
-            <button className="btn" disabled={busy} onClick={sample}>{d.data.sample}</button>
-            <button className="btn danger" disabled={busy} onClick={reset}>{d.data.reset}</button>
+        {!connected && (
+          <div className="card">
+            <div className="toolbar" style={{ margin: 0 }}>
+              <button className="btn" disabled={busy} onClick={sample}>{d.data.sample}</button>
+              <button className="btn danger" disabled={busy} onClick={reset}>{d.data.reset}</button>
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

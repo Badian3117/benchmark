@@ -1,7 +1,7 @@
 {
   "name": "benchmark",
   "productName": "BenchMark",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "BenchMark \u2013 project KPI control for mining contractors",
   "author": "CORICA Mining Services",
   "private": true,
@@ -10,15 +10,19 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
-    "test": "vitest run",
+    "test": "vitest run tests/engine.test.ts",
     "start": "npm run build && electron .",
     "make:sample": "node scripts/make-sample.mjs",
     "dist:win": "npm run build && electron-builder --win nsis --x64",
-    "dist:linux": "npm run build && electron-builder --linux AppImage"
+    "dist:linux": "npm run build && electron-builder --linux AppImage",
+    "test:server": "vitest run tests/server",
+    "gen:sql": "node scripts/gen-sql.ts > supabase/migrations/20261029000000_benchmark.sql",
+    "test:e2e:connected": "scripts/e2e-connected.sh"
   },
-  "dependencies": {},
   "devDependencies": {
+    "@supabase/supabase-js": "^2.117.3",
     "@types/node": "^22.20.5",
+    "@types/pg": "^8.23.1",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "@types/sql.js": "1.4.11",
@@ -26,6 +30,7 @@
     "electron": "44.7.0",
     "electron-builder": "26.17.0",
     "exceljs": "4.4.0",
+    "pg": "^8.23.1",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "sql.js": "1.14.2",

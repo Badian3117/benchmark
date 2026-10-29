@@ -10,12 +10,16 @@ export interface Persistence {
 
 export interface DesktopBridge {
   version: string;
-  loadDb(): Promise<Uint8Array | null>;
-  saveDb(bytes: Uint8Array): Promise<void>;
+  loadDb(name: string): Promise<Uint8Array | null>;
+  saveDb(name: string, bytes: Uint8Array): Promise<void>;
   openFile(filters: { name: string; extensions: string[] }[]): Promise<{ name: string; bytes: Uint8Array } | null>;
   saveFile(defaultName: string, bytes: Uint8Array, filters: { name: string; extensions: string[] }[]): Promise<string | null>;
   dataLocation(): Promise<string>;
   showDataFolder(): Promise<void>;
+  /** open a URL in the system browser (Microsoft sign-in) */
+  openExternal(url: string): Promise<void>;
+  /** benchmark://auth/callback?code=… delivered by the OS after Microsoft sign-in */
+  onAuthCallback(fn: (url: string) => void): void;
 }
 
 declare global {
@@ -35,13 +39,13 @@ function idb(): Promise<IDBDatabase> {
   });
 }
 
-const browserPersistence: Persistence = {
+const browserPersistence = (name: string): Persistence => ({
   kind: 'browser',
   async load() {
     try {
       const db = await idb();
       return await new Promise((resolve) => {
-        const req = db.transaction('files').objectStore('files').get('db');
+        const req = db.transaction('files').objectStore('files').get(name);
         req.onsuccess = () => resolve(req.result ? new Uint8Array(req.result) : null);
         req.onerror = () => resolve(null);
       });
@@ -54,7 +58,7 @@ const browserPersistence: Persistence = {
       const db = await idb();
       await new Promise<void>((resolve, reject) => {
         const tx = db.transaction('files', 'readwrite');
-        tx.objectStore('files').put(bytes, 'db');
+        tx.objectStore('files').put(bytes, name);
         tx.oncomplete = () => resolve();
         tx.onerror = () => reject(tx.error);
       });
@@ -62,11 +66,14 @@ const browserPersistence: Persistence = {
       /* preview only – nothing else to do */
     }
   },
-};
+});
 
-export function getPersistence(): Persistence {
-  if (desktop) return { kind: 'file', load: () => desktop.loadDb(), save: (b) => desktop.saveDb(b) };
-  return browserPersistence;
+/** name: 'benchmark' (standalone) or 'user-<uuid>' – one local database per signed-in user */
+export function getPersistence(name: string): Persistence {
+  // the preview used the key 'db' before databases were named
+  const key = name === 'benchmark' && !desktop ? 'db' : name;
+  if (desktop) return { kind: 'file', load: () => desktop.loadDb(key), save: (b) => desktop.saveDb(key, b) };
+  return browserPersistence(key);
 }
 
 /** Save/download a file: native dialog on desktop, browser download otherwise. */

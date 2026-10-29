@@ -6,11 +6,14 @@ import { isLocked } from '../../engine/validate.ts';
 import { useI18n } from '../../i18n/index.ts';
 import { useApp } from '../context.ts';
 import { StatusIcon, formatValue } from '../components/common.tsx';
+import { useSession } from '../session.ts';
+import { canCreate } from '../../engine/permissions.ts';
 
 const LONG = new Set(['description', 'rootCause', 'action', 'mitigation', 'initiative', 'reason', 'name', 'milestone', 'deliverable']);
 
 export function LogPage({ log }: { log: LogKey }) {
   const { ds, scope, findings, edit, period } = useApp();
+  const { who } = useSession();
   const i = useI18n();
   const d = i.d;
   const def = LOG_BY_KEY[log];
@@ -79,7 +82,7 @@ export function LogPage({ log }: { log: LogKey }) {
           <h1>{d.logs[log].title}</h1>
           <p className="muted">{d.logs[log].desc}</p>
         </div>
-        {log !== 'targetRevisions' && <button className="btn primary" onClick={() => edit(log, null)}>+ {d.common.new}</button>}
+        {log !== 'targetRevisions' && canCreate(log, who) && <button className="btn primary" onClick={() => edit(log, null)}>+ {d.common.new}</button>}
       </div>
       <div className="toolbar">
         <input type="search" placeholder={d.common.search} value={q} onChange={(e) => setQ(e.target.value)} />

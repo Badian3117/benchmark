@@ -3,6 +3,8 @@ import { actionCounts, snapshot, type Alert } from '../../engine/analysis.ts';
 import { KPIS, trend, type KpiKey } from '../../engine/kpis.ts';
 import { useI18n } from '../../i18n/index.ts';
 import { useApp } from '../context.ts';
+import { useSession } from '../session.ts';
+import { canWriteAnything } from '../../engine/permissions.ts';
 import { RagHistory } from '../components/charts.tsx';
 import { RagChip, SeverityChip, StatusIcon, TrendText, targetRule } from '../components/common.tsx';
 
@@ -21,6 +23,7 @@ export function Dashboard() {
   const d = i.d;
   const idx = tracking.reportIdx;
   const alertText = useAlertText();
+  const { who } = useSession();
   const snap = useMemo(() => snapshot(ds, period, scope), [ds, period, scope]);
 
   const rows = KPIS.map((k) => {
@@ -120,7 +123,7 @@ export function Dashboard() {
                     <td><RagChip rag={c?.rag ?? null} /></td>
                     <td style={{ whiteSpace: 'nowrap' }}>
                       <span className="faint" style={{ fontSize: 12 }}>{acts.live} {d.dashboard.openActions} · {acts.done} {d.dashboard.doneActions}</span>
-                      {(c?.rag === 'RED' || c?.rag === 'AMBER') && (
+                      {(c?.rag === 'RED' || c?.rag === 'AMBER') && canWriteAnything(who) && (
                         <button className="btn small" style={{ marginLeft: 6 }} onClick={() => edit('actions', null, { kpi: k.key, before: c.value, project: filter.project ?? null })}>
                           + {d.dashboard.raiseAction}
                         </button>

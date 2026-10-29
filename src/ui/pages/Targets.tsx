@@ -4,9 +4,13 @@ import { useI18n } from '../../i18n/index.ts';
 import { newId } from '../../io/ids.ts';
 import { useApp } from '../context.ts';
 import { Modal, kpiName, targetRule } from '../components/common.tsx';
+import { useSession } from '../session.ts';
+import { isAdmin } from '../../engine/permissions.ts';
 
 export function Targets() {
   const { ds, store } = useApp();
+  const { who } = useSession();
+  const admin = isAdmin(who);
   const i = useI18n();
   const d = i.d;
   const [editing, setEditing] = useState<KpiKey | null>(null);
@@ -44,13 +48,13 @@ export function Targets() {
                   <td className="num">{targetRule(t, k.unit, i)}</td>
                   <td className="num">{targetRule(t, k.unit, i, 'amber')}</td>
                   <td>
-                    <select value={t.owner} onChange={(e) => store.setTargetOwner(k.key, e.target.value)}>
+                    <select value={t.owner} disabled={!admin} onChange={(e) => store.setTargetOwner(k.key, e.target.value)}>
                       <option value="">—</option>
                       {[...new Set([...ds.settings.lists.owners, t.owner].filter(Boolean))].map((o) => <option key={o}>{o}</option>)}
                     </select>
                   </td>
                   <td className="faint" style={{ fontSize: 12 }}>{k.sources.map((s) => d.logs[s].title).join(' + ')}</td>
-                  <td><button className="btn small" onClick={() => setEditing(k.key)}>{d.targets.edit}</button></td>
+                  <td>{admin && <button className="btn small" onClick={() => setEditing(k.key)}>{d.targets.edit}</button>}</td>
                 </tr>
               );
             })}
