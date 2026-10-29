@@ -6,6 +6,9 @@ import { useApp } from '../context.ts';
 import { useSession } from '../session.ts';
 import { isAdmin } from '../../engine/permissions.ts';
 import { builtInServer, saveServerConfig, serverConfig } from '../../sync/session.ts';
+import { desktop } from '../../data/persistence.ts';
+import { prefs } from '../context.ts';
+import { desktopLevel, showNotification } from '../components/Notifier.tsx';
 
 const LIST_LABEL: Record<ListKey, string> = {
   projectStatus: 'status', priority: 'priority', changeType: 'type', crDecision: 'decision', riskStatus: 'status', riskCategory: 'category',
@@ -57,6 +60,7 @@ export function SettingsPage() {
     <div style={{ maxWidth: 1100 }}>
       <h1>{d.settings.title}</h1>
       <ServerSection />
+      <NotificationsSection />
       <div className="card" style={{ margin: '16px 0' }}>
         <h2>{d.settings.general}</h2>
         <fieldset disabled={!admin} style={{ border: 0, padding: 0, margin: 0 }}>
@@ -130,6 +134,58 @@ function ServerSection() {
         <button className="btn primary" disabled={!/^https:\/\/.+/.test(url) || key.length < 20} onClick={() => { saveServerConfig({ url, anonKey: key }); location.reload(); }}>{d.connect}</button>
         {cur && <button className="btn danger" onClick={() => { if (confirm(d.confirmDisconnect)) { saveServerConfig(null); location.reload(); } }}>{d.disconnect}</button>}
       </div>
+    </div>
+  );
+}
+
+/** Desktop notifications (this laptop) and, when connected, e-mail preferences (server). */
+function NotificationsSection() {
+  const i = useI18n();
+  const d = i.d.notify;
+  const session = useSession();
+  const [level, setLevel] = useState(desktopLevel());
+  const [p, setP] = useState(session.who?.prefs ?? { lang: i.lang, digest: true, critical: true });
+  const [msg, setMsg] = useState('');
+  const changeLevel = async (v: string) => {
+    setLevel(v as typeof level);
+    prefs.set('notify.level', v);
+    if (v !== 'off' && !desktop && typeof Notification !== 'undefined' && Notification.permission === 'default') await Notification.requestPermission();
+  };
+  return (
+    <div className="card" style={{ margin: '16px 0' }}>
+      <h2>{d.title}</h2>
+      <div className="kv">
+        <label>{d.desktop}<div className="faint" style={{ fontSize: 12, fontWeight: 400 }}>{d.desktopHint}</div></label>
+        <div className="toolbar" style={{ margin: 0 }}>
+          <select value={level} onChange={(e) => void changeLevel(e.target.value)}>
+            <option value="off">{d.off}</option>
+            <option value="critical">{d.critical}</option>
+            <option value="serious">{d.serious}</option>
+          </select>
+          <button className="btn" onClick={() => showNotification('BenchMark', d.testBody, null)}>{d.test}</button>
+        </div>
+      </div>
+      {session.savePrefs && (
+        <>
+          <h3 style={{ marginTop: 16 }}>{d.email}</h3>
+          <p className="faint" style={{ fontSize: 12 }}>{i.t(d.emailHint, { email: session.who?.email ?? '' })}</p>
+          <div style={{ display: 'grid', gap: 8 }}>
+            <label><input type="checkbox" checked={p.critical} onChange={(e) => setP({ ...p, critical: e.target.checked })} /> {d.emailCritical}</label>
+            <label><input type="checkbox" checked={p.digest} onChange={(e) => setP({ ...p, digest: e.target.checked })} /> {d.emailDigest}</label>
+            <label className="ctl" style={{ maxWidth: 220 }}>
+              <span>{i.d.common.language}</span>
+              <select value={p.lang} onChange={(e) => setP({ ...p, lang: e.target.value as 'en' | 'fr' })}>
+                <option value="en">English</option>
+                <option value="fr">Français</option>
+              </select>
+            </label>
+            <div className="toolbar" style={{ margin: 0 }}>
+              <button className="btn primary" onClick={() => void session.savePrefs!(p).then(() => setMsg(d.saved), (e) => setMsg(String(e?.message ?? e)))}>{i.d.common.save}</button>
+              {msg && <span className="save-state">{msg}</span>}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

@@ -27,6 +27,9 @@ const ok = (c, m) => { if (!c) { console.log('FAIL ' + m); process.exitCode = 1;
   for (let i = 0; i < 40 && !require('node:fs').existsSync(pdfPath); i++) await w.waitForTimeout(250);
   const head = require('node:fs').existsSync(pdfPath) ? require('node:fs').readFileSync(pdfPath).subarray(0, 5).toString() : '';
   ok(head === '%PDF-', 'monthly report exported to PDF by the desktop app');
+  // notification bridge: main process answers (true where the OS supports notifications)
+  const shown = await w.evaluate(() => window.benchmark.notify('BenchMark', 'test', null));
+  ok(typeof shown === 'boolean', 'desktop notification bridge answers (' + shown + ')');
   ok(errs.length === 0, 'no page errors ' + errs.join(' | '));
   await app.close();
 })();

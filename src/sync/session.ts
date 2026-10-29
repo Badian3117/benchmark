@@ -92,6 +92,9 @@ interface ProfileRow {
   owner_name: string | null;
   role: Role;
   active: boolean;
+  lang?: string | null;
+  notify_digest?: boolean | null;
+  notify_critical?: boolean | null;
   site_members: { site_code: string }[];
 }
 
@@ -111,6 +114,7 @@ export async function loadProfile(cfg: ServerConfig, session: Session): Promise<
       owner: p?.owner_name ?? '',
       role: p && p.active ? p.role : 'pending',
       sites: (p?.site_members ?? []).map((m) => m.site_code).sort(),
+      prefs: { lang: p?.lang === 'fr' ? 'fr' : 'en', digest: p?.notify_digest !== false, critical: p?.notify_critical !== false },
     };
     safe.set(cacheKey, JSON.stringify(who));
     return { who, offline: false };
@@ -123,4 +127,14 @@ export async function loadProfile(cfg: ServerConfig, session: Session): Promise<
 
 export async function signOut(sb: SupabaseClient) {
   await sb.auth.signOut({ scope: 'local' });
+}
+
+/** Save the signed-in user's e-mail preferences (they cannot change anything else on their profile). */
+export async function saveMyPrefs(cfg: ServerConfig, token: string, prefs: { lang: 'en' | 'fr'; digest: boolean; critical: boolean }) {
+  const res = await fetch(`${cfg.url}/rest/v1/rpc/bm_set_my_prefs`, {
+    method: 'POST',
+    headers: { apikey: cfg.anonKey, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ p_lang: prefs.lang, p_digest: prefs.digest, p_critical: prefs.critical }),
+  });
+  if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
 }

@@ -29,6 +29,11 @@ BenchMark keeps the workbook's monthly control loop – *set targets → capture
 
 The engine is checked against the workbook: `tests/engine.test.ts` reproduces **all 160 KPI values** (16 KPIs × Jan–Oct) that Excel calculated. The only differences are the two Success Rate months changed by fix 2 above.
 
+## Notifications (v0.4)
+
+* **Desktop:** a Windows notification for every **new** critical alert (or critical + serious, per laptop setting) when a sync or an edit brings one. Click it to open the record. Never repeated, and no flood on first start.
+* **E-mail:** the `bm-notify` server function runs the same alert engine on the central data. It sends an hourly e-mail when a new critical alert appears, and a daily digest of critical + serious alerts by site. Executives get every site, PMs their own; each user picks English or French and can opt out. Setup: [docs/NOTIFICATIONS.md](docs/NOTIFICATIONS.md).
+
 ## Contractor module (v0.3)
 
 Built around the contractor–owner reality of a drill & blast contract:
@@ -84,6 +89,8 @@ All laptops sync with one central database (Supabase / PostgreSQL). **Setup guid
 ```
 src/engine   dates, schema (logs, fields, computed columns), kpis, analysis (health, alerts, snapshot), validate, permissions
 src/sync     transport (Supabase REST), engine (two-way sync), session (sign-in, profile), admin (users & sites)
+src/notify   alert identity, new-alert detection, e-mail rendering (shared with the server function)
+supabase/functions/bm-notify   hourly / daily e-mail function (handler.ts is runtime-neutral and tested in Node)
 supabase     migrations/… – the server schema, GENERATED from src/engine/schema.ts (npm run gen:sql)
 src/data     store (SQLite), persistence (desktop file / browser IndexedDB preview), sample.json
 src/io       Excel import / export
@@ -114,4 +121,5 @@ Building the Windows installer on Linux needs `wine64` and `wine32:i386`. The Gi
 
 * ~~Phase 2 – multi-PM sync~~ (v0.2).
 * ~~Phase 3 – contractor module, PDF reports, Power BI~~ (v0.3).
-* Next candidates: Minesched schedule import, weekly (rather than monthly) KPI view for production, client-facing read-only portal, push notifications for critical alerts.
+* ~~Phase 4 – critical-alert notifications (desktop + e-mail)~~ (v0.4).
+* Next candidates: Minesched schedule import, weekly KPI view for production, client-facing read-only portal.

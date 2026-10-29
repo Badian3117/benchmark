@@ -55,6 +55,13 @@ export const en = {
     n: 'n', notApplicable: 'n/a', portfolioOnly: 'Portfolio-level KPI – not filtered by project',
     previewMode: 'Preview mode – data is kept in this browser only. Install the desktop app for real use.',
   },
+  notify: {
+    title: 'Notifications', desktop: 'Desktop notifications (this laptop)', desktopHint: 'Shown when a sync or an edit brings a new alert. Click a notification to open the record.',
+    off: 'Off', critical: 'Critical alerts only', serious: 'Critical and serious alerts', test: 'Send a test notification', testBody: 'Notifications are working.',
+    more: '…and {n} more new alert(s) – see the watch list', email: 'E-mail (from the server)',
+    emailHint: 'Sent to {email}. Executives receive every site, project managers their own sites.',
+    emailCritical: 'Hourly e-mail when a new critical alert appears', emailDigest: 'Daily digest of critical and serious alerts', saved: 'Saved',
+  },
   report: {
     title: 'Monthly report', intro: 'Contractor monthly report for the selected month and filters: safety, production, cost and schedule, variations, approval gates, explosives, risks and the look-ahead.',
     exportPdf: 'Export PDF', summary: 'Executive summary', none: 'Nothing to report.', vosPending: 'Variations awaiting decision',
@@ -265,6 +272,7 @@ export const en = {
       'New: cumulative SPI and CPI (YTD) with the contractor escalation rules, project health, watch list, sample size (n) on every KPI.',
       'New: data-quality checks, period lock, full audit trail, site / PM / project filters, French and English.',
       'Contractor module: approval gates (48 h escalation), variation register, drill & blast production, explosives reconciliation, safety (TRIFR / LTIFR), rotation handovers, PDF monthly report and handover pack, Power BI export.',
+      'Notifications: a desktop notification for every new critical alert, and an hourly / daily e-mail from the server (Settings › Notifications).',
     ],
   },
 };

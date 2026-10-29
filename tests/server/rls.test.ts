@@ -157,6 +157,14 @@ d('BenchMark server permissions', () => {
     expect((await db.query(`select count(*)::int as n from site_members where user_id = '${U.diallo}'`)).rows[0].n).toBe(1);
   });
 
+  it('users change their own notification preferences only', async () => {
+    await as(U.camara, `select bm_set_my_prefs('fr', false, true)`);
+    const me = (await db.query(`select lang, notify_digest, notify_critical, role from profiles where id = '${U.camara}'`)).rows[0];
+    expect(me).toEqual({ lang: 'fr', notify_digest: false, notify_critical: true, role: 'pm' });
+    expect((await db.query(`select lang from profiles where id = '${U.diallo}'`)).rows[0].lang).toBe('en');
+    await expect(as(U.admin, `select * from notifications_sent`)).rejects.toThrow(/permission denied/);
+  });
+
   it('KPI targets: admin writes, everyone signed in reads', async () => {
     const t = { id: 'onTime', base_rev: 0, data: { key: 'onTime', direction: 'Higher', target: 0.9, amber: 0.8, owner: '' } };
     expect((await push(U.camara, 'kpi_targets', [t]))[0].status).toBe('denied');

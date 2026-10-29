@@ -16,10 +16,12 @@ export interface SessionState {
   signOut: () => Promise<void>;
   /** email + password accounts only */
   changePassword: ((password: string) => Promise<void>) | null;
+  /** connected mode: save the user's e-mail notification preferences */
+  savePrefs: ((prefs: { lang: 'en' | 'fr'; digest: boolean; critical: boolean }) => Promise<void>) | null;
 }
 
 export const STANDALONE: SessionState = {
-  mode: 'standalone', who: null, sync: null, admin: null, cfg: null, offlineProfile: false, signOut: async () => {}, changePassword: null,
+  mode: 'standalone', who: null, sync: null, admin: null, cfg: null, offlineProfile: false, signOut: async () => {}, changePassword: null, savePrefs: null,
 };
 
 export const SessionContext = createContext<SessionState>(STANDALONE);

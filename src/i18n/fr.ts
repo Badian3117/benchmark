@@ -57,6 +57,13 @@ export const fr: Dict = {
     n: 'n', notApplicable: 'n/a', portfolioOnly: 'KPI au niveau du portefeuille – non filtré par projet',
     previewMode: 'Mode aperçu – les données restent dans ce navigateur. Installez l’application pour un usage réel.',
   },
+  notify: {
+    title: 'Notifications', desktop: 'Notifications sur ce poste', desktopHint: 'Affichées quand une synchronisation ou une saisie crée une nouvelle alerte. Cliquez sur une notification pour ouvrir l’enregistrement.',
+    off: 'Désactivées', critical: 'Alertes critiques seulement', serious: 'Alertes critiques et sérieuses', test: 'Envoyer une notification de test', testBody: 'Les notifications fonctionnent.',
+    more: '…et {n} autre(s) nouvelle(s) alerte(s) – voir la vigilance', email: 'E-mail (depuis le serveur)',
+    emailHint: 'Envoyé à {email}. La direction reçoit tous les sites, les chefs de projet leurs propres sites.',
+    emailCritical: 'E-mail horaire quand une nouvelle alerte critique apparaît', emailDigest: 'Synthèse quotidienne des alertes critiques et sérieuses', saved: 'Enregistré',
+  },
   report: {
     title: 'Rapport mensuel', intro: 'Rapport mensuel du sous-traitant pour le mois et les filtres choisis : sécurité, production, coûts et délais, avenants, autorisations, explosifs, risques et prévisions.',
     exportPdf: 'Exporter en PDF', summary: 'Synthèse', none: 'Rien à signaler.', vosPending: 'Avenants en attente de décision',
@@ -283,6 +290,7 @@ export const fr: Dict = {
       'Nouveau : SPI et CPI cumulés avec les règles d’escalade, santé des projets, vigilance, taille d’échantillon (n) sur chaque KPI.',
       'Nouveau : contrôles qualité, verrouillage des périodes, journal d’audit complet, filtres site / CP / projet, français et anglais.',
       'Module sous-traitant : autorisations (escalade à 48 h), registre des avenants, production forage & minage, rapprochement des explosifs, sécurité (TRIFR / LTIFR), relèves de rotation, rapport mensuel et dossier de relève en PDF, export Power BI.',
+      'Notifications : une notification sur le poste pour chaque nouvelle alerte critique, et un e-mail horaire / quotidien depuis le serveur (Paramètres › Notifications).',
     ],
   },
 };
