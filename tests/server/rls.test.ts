@@ -164,6 +164,19 @@ d('BenchMark server permissions', () => {
     expect(await visible(U.diallo, 'kpi_targets')).toEqual(['onTime']);
   });
 
+  it('the Power BI reporting role reads every site and cannot write', async () => {
+    await db.query(`do $$ begin if not exists (select from pg_roles where rolname = 'powerbi_test') then create role powerbi_test login in role bm_reporting; end if; end $$`);
+    await db.query('begin');
+    try {
+      await db.query('set local role powerbi_test');
+      const r = await db.query(`select id from projects order by id`);
+      expect(r.rows.map((x) => x.id)).toEqual(['p1', 'p2']);
+      await expect(db.query(`update projects set eac = 0`)).rejects.toThrow(/permission denied/);
+    } finally {
+      await db.query('rollback');
+    }
+  });
+
   it('the audit trail accepts only the caller’s own entries', async () => {
     const ins = (id: string, user: string) =>
       as(U.camara, `insert into audit (id, ts, user_id, action, summary) values ($1, now(), $2, 'update', 'x')`, [id, user]);

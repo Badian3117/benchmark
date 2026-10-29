@@ -2,7 +2,7 @@
 // data from row 5) into a BenchMark dataset. Columns are matched by header text, not
 // position, so re-ordered or extra columns do not break the import.
 import type ExcelJS from 'exceljs';
-import { isISODate, monthStart, toISO } from '../engine/dates.ts';
+import { dayOf, isISODate, isISODateTime, monthStart, toISO } from '../engine/dates.ts';
 import { DEFAULT_TARGETS, KPIS, type Dataset, type KpiKey, type KpiTarget } from '../engine/kpis.ts';
 import { DEFAULT_LISTS, LOG_BY_KEY, defaultSettings, type ListKey, type LogKey, type Row } from '../engine/schema.ts';
 import { en } from '../i18n/en.ts';
@@ -51,6 +51,13 @@ const SHEETS: Sheet[] = [
   { sheet: 'CI_Log', log: 'ci', cols: {
     'ci id': 'code', 'date proposed': 'proposed', initiative: 'initiative', 'kpi targeted': 'kpi', owner: 'owner', status: 'status',
     'implementation date': 'implDate', 'expected benefit': 'expected', 'benefit verified?': 'verified', 'verified result': 'verifiedResult', remarks: 'remarks' } },
+  // contractor logs: columns are matched by BenchMark's own field labels (EN / FR)
+  { sheet: 'Gates', log: 'gates', cols: {} },
+  { sheet: 'Variations', log: 'variations', cols: {} },
+  { sheet: 'Production', log: 'production', cols: {} },
+  { sheet: 'Explosives', log: 'explosives', cols: {} },
+  { sheet: 'Safety', log: 'safety', cols: {} },
+  { sheet: 'Handovers', log: 'handovers', cols: {} },
   { sheet: 'Action_Log', log: 'actions', cols: {
     'action id': 'code', 'date raised': 'raised', 'kpi concerned': 'kpi', 'project id (optional)': 'project', 'kpi value before': 'before',
     'problem / root cause': 'rootCause', 'corrective action / change': 'action', owner: 'owner', 'due date': 'due', status: 'status',
@@ -95,7 +102,11 @@ export function kpiKeyFromName(name: unknown): KpiKey | null {
 /** Plain value of a cell: formula results, rich text and hyperlinks unwrapped; dates → ISO. */
 export function cellValue(v: ExcelJS.CellValue): unknown {
   if (v === null || v === undefined) return null;
-  if (v instanceof Date) return toISO(v);
+  if (v instanceof Date) {
+    // Excel stores wall-clock time; keep the time of day when there is one
+    const hm = v.getUTCHours() * 60 + v.getUTCMinutes();
+    return hm ? `${toISO(v)}T${String(v.getUTCHours()).padStart(2, '0')}:${String(v.getUTCMinutes()).padStart(2, '0')}` : toISO(v);
+  }
   if (typeof v === 'object') {
     if ('result' in v) return cellValue((v as ExcelJS.CellFormulaValue).result as ExcelJS.CellValue);
     if ('formula' in v || 'sharedFormula' in v) return null; // formula without cached result
@@ -113,8 +124,9 @@ function coerce(log: LogKey, key: string, v: unknown): unknown {
   const fd = LOG_BY_KEY[log].fields.find((f) => f.key === key);
   if (!fd) return v;
   switch (fd.type) {
-    case 'date': return isISODate(v) ? v : null;
-    case 'month': return isISODate(v) ? monthStart(v) : null;
+    case 'date': return dayOf(v);
+    case 'month': { const d = dayOf(v); return d ? monthStart(d) : null; }
+    case 'datetime': return isISODateTime(v) ? v : isISODate(v) ? v + 'T00:00' : null;
     case 'number': case 'money': case 'percent': case 'score': {
       const n = typeof v === 'number' ? v : Number(String(v).replace(/[\s,]/g, ''));
       return Number.isFinite(n) ? n : null;
@@ -156,7 +168,11 @@ export function importWorkbook(wb: ExcelJS.Workbook, today: string): ImportRepor
 
   for (const s of SHEETS) {
     const ws = wb.getWorksheet(s.sheet);
-    if (!ws) { missingSheets.push(s.sheet); continue; }
+    if (!ws) {
+      if (LOG_BY_KEY[s.log].group !== 'ops') missingSheets.push(s.sheet);
+      counts[s.log] = 0;
+      continue;
+    }
     const hr = headerRow(ws);
     const map = new Map<number, string>();
     const aliases = labelAliases(s.log);

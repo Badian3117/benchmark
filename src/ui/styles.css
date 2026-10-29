@@ -265,3 +265,32 @@ td.ellipsis { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white
 .list-editors textarea { min-height: 140px; font-size: 13px; }
 .kv { display: grid; grid-template-columns: minmax(200px, 320px) minmax(0, 360px); gap: 10px 16px; align-items: center; }
 .def-table td { vertical-align: top; }
+
+tr.group-row td { background: var(--surface-2); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-2); padding: 6px 10px; }
+
+/* ---------- reports (screen + print) ---------- */
+.report { max-width: 1100px; }
+.report-head { border-bottom: 3px solid var(--accent); padding-bottom: 10px; margin-bottom: 16px; }
+.report-title { font-size: 22px; font-weight: 700; }
+.report-section { margin-bottom: 18px; break-inside: avoid-page; }
+.report-section h2 { border-bottom: 1px solid var(--border); padding-bottom: 4px; }
+.report-table { margin-bottom: 10px; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+.report-table th { position: static; }
+.report-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; margin-bottom: 12px; }
+.report-kpi-group, .report-figure { border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; display: grid; gap: 4px; }
+.report-figure b { font-size: 18px; font-variant-numeric: tabular-nums; }
+.report-alerts { list-style: none; padding: 0; margin: 0; display: grid; gap: 4px; }
+.report-charts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 18px; }
+.signatures .sig { padding-top: 10px; }
+
+@media print {
+  :root:root:root { color-scheme: light; --bg: #fff; --surface: #fff; --surface-2: #f3f3f1; --border: #d9d8d3; --border-strong: #c5c4bd; --text: #000; --text-2: #3d3c39; --text-3: #666; --grid: #e6e5e0;
+    --good-soft: #e2f4e2; --warning-soft: #fdf1d4; --critical-soft: #f8dede; --good-ink: #0a6d0a; --warning-ink: #7a5300; --critical-ink: #a32626; --series-1: #2a78d6; --accent: #2a78d6; --band: rgba(12, 163, 12, 0.10); }
+  body { background: #fff; }
+  .sidebar, .topbar, .no-print, .content > .notice { display: none !important; }
+  .app { display: block; height: auto; }
+  .main, .content { overflow: visible; height: auto; padding: 0; }
+  .card { box-shadow: none; }
+  .report { max-width: none; font-size: 11px; }
+  .report-table td, .report-table th { padding: 4px 6px; }
+}

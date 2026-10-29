@@ -1,4 +1,4 @@
-import { KPIS } from '../../engine/kpis.ts';
+import { KPI_GROUPS, KPIS_ORDERED } from '../../engine/kpis.ts';
 import { useI18n } from '../../i18n/index.ts';
 import { useApp } from '../context.ts';
 import { KpiChart } from '../components/charts.tsx';
@@ -22,8 +22,11 @@ export function Trends() {
           </div>
         </div>
       </div>
+      {KPI_GROUPS.map((g) => (
+      <section key={g} style={{ marginBottom: 20 }}>
+      <h2>{d.kpiGroups[g]}</h2>
       <div className="grid cards">
-        {KPIS.map((k) => {
+        {KPIS_ORDERED.filter((k) => k.group === g).map((k) => {
           const c = tracking.rows[k.key][idx];
           const t = ds.targets[k.key];
           return (
@@ -41,6 +44,8 @@ export function Trends() {
           );
         })}
       </div>
+      </section>
+      ))}
     </>
   );
 }

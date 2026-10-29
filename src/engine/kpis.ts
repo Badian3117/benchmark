@@ -1,7 +1,8 @@
-import { inRange, isISODate, makePeriod, yearMonths, todayISO, type ISODate, type Period } from './dates.ts';
+import { hoursBetween, inRange, isISODate, isISODateTime, makePeriod, yearMonths, todayISO, type ISODate, type Period } from './dates.ts';
 import {
   milestoneOnTime,
   projectOnTime,
+  recordables,
   projectSuccessful,
   surveyOverall,
   type LogKey,
@@ -12,9 +13,13 @@ import {
 export type KpiKey =
   | 'sv' | 'cv' | 'budgetUtil' | 'onTime' | 'scopeFreq' | 'riskEff' | 'issueTime' | 'satisfaction'
   | 'resourceUtil' | 'successRate' | 'milestoneRate' | 'quality' | 'crTime' | 'productivity'
-  | 'benefits' | 'ci' | 'cumSpi' | 'cumCpi';
+  | 'benefits' | 'ci' | 'cumSpi' | 'cumCpi'
+  // contractor operations & safety (Phase 3)
+  | 'gateLag' | 'verbalOpen' | 'variationRecovery' | 'drillPlan' | 'blastPlan' | 'reblastRate' | 'explosivesVar'
+  | 'trifr' | 'ltifr' | 'blastCompliance' | 'handoverCompliance';
 
-export type Unit = 'pct' | 'ratio' | 'days' | 'score' | 'count' | 'perProject';
+export type Unit = 'pct' | 'ratio' | 'days' | 'score' | 'count' | 'perProject' | 'hours' | 'rate';
+export type KpiGroup = 'safety' | 'ops' | 'pm';
 export type Direction = 'Higher' | 'Lower' | 'Band';
 export type Rag = 'GREEN' | 'AMBER' | 'RED';
 
@@ -51,6 +56,8 @@ export interface KpiValue {
 export interface KpiDef {
   key: KpiKey;
   num: number;
+  /** dashboard section: safety first, then contractor operations, then project management */
+  group: KpiGroup;
   unit: Unit;
   basis: 'month' | 'ytd';
   sources: LogKey[];
@@ -82,7 +89,7 @@ function completedYtd(ds: Dataset, p: Period, scope: Scope) {
 // ---------- the 18 KPIs ----------
 export const KPIS: KpiDef[] = [
   {
-    key: 'sv', num: 1, unit: 'pct', basis: 'month', sources: ['costSchedule'], projectScoped: true,
+    key: 'sv', num: 1, group: 'pm', unit: 'pct', basis: 'month', sources: ['costSchedule'], projectScoped: true,
     compute: (ds, p, s) => {
       const rows = costRows(ds, s, p.start, p.end);
       const pv = sum(rows, 'pv');
@@ -90,7 +97,7 @@ export const KPIS: KpiDef[] = [
     },
   },
   {
-    key: 'cv', num: 2, unit: 'pct', basis: 'month', sources: ['costSchedule'], projectScoped: true,
+    key: 'cv', num: 2, group: 'pm', unit: 'pct', basis: 'month', sources: ['costSchedule'], projectScoped: true,
     compute: (ds, p, s) => {
       const rows = costRows(ds, s, p.start, p.end);
       const ev = sum(rows, 'ev');
@@ -98,21 +105,21 @@ export const KPIS: KpiDef[] = [
     },
   },
   {
-    key: 'budgetUtil', num: 3, unit: 'pct', basis: 'month', sources: ['costSchedule'], projectScoped: true,
+    key: 'budgetUtil', num: 3, group: 'pm', unit: 'pct', basis: 'month', sources: ['costSchedule'], projectScoped: true,
     compute: (ds, p, s) => {
       const rows = costRows(ds, s, p.start, p.end);
       return ratio(sum(rows, 'ac'), sum(rows, 'budget'), rows.length);
     },
   },
   {
-    key: 'onTime', num: 4, unit: 'pct', basis: 'ytd', sources: ['projects'], projectScoped: true, smallSample: 5,
+    key: 'onTime', num: 4, group: 'pm', unit: 'pct', basis: 'ytd', sources: ['projects'], projectScoped: true, smallSample: 5,
     compute: (ds, p, s) => {
       const done = completedYtd(ds, p, s);
       return ratio(done.filter((r) => projectOnTime(r) === true).length, done.length, done.length);
     },
   },
   {
-    key: 'scopeFreq', num: 5, unit: 'perProject', basis: 'month', sources: ['changes', 'projects'], projectScoped: true,
+    key: 'scopeFreq', num: 5, group: 'pm', unit: 'perProject', basis: 'month', sources: ['changes', 'projects'], projectScoped: true,
     compute: (ds, p, s) => {
       const scopeCrs = ds.logs.changes.filter(
         (r) => r.type === 'Scope' && inRange(r.submitted, p.start, p.end) && inScope(s, r.project),
@@ -128,14 +135,14 @@ export const KPIS: KpiDef[] = [
     },
   },
   {
-    key: 'riskEff', num: 6, unit: 'pct', basis: 'ytd', sources: ['risks'], projectScoped: true, smallSample: 5,
+    key: 'riskEff', num: 6, group: 'pm', unit: 'pct', basis: 'ytd', sources: ['risks'], projectScoped: true, smallSample: 5,
     compute: (ds, p, s) => {
       const closed = ds.logs.risks.filter((r) => inRange(r.closureDate, p.yearStart, p.end) && inScope(s, r.project));
       return ratio(closed.filter((r) => r.materialised === 'No').length, closed.length, closed.length);
     },
   },
   {
-    key: 'issueTime', num: 7, unit: 'days', basis: 'month', sources: ['issues'], projectScoped: true,
+    key: 'issueTime', num: 7, group: 'pm', unit: 'days', basis: 'month', sources: ['issues'], projectScoped: true,
     compute: (ds, p, s) =>
       avg(
         ds.logs.issues
@@ -144,7 +151,7 @@ export const KPIS: KpiDef[] = [
       ),
   },
   {
-    key: 'satisfaction', num: 8, unit: 'score', basis: 'month', sources: ['surveys'], projectScoped: true,
+    key: 'satisfaction', num: 8, group: 'pm', unit: 'score', basis: 'month', sources: ['surveys'], projectScoped: true,
     compute: (ds, p, s) =>
       avg(
         ds.logs.surveys
@@ -154,14 +161,14 @@ export const KPIS: KpiDef[] = [
       ),
   },
   {
-    key: 'resourceUtil', num: 9, unit: 'pct', basis: 'month', sources: ['resources'], projectScoped: false,
+    key: 'resourceUtil', num: 9, group: 'pm', unit: 'pct', basis: 'month', sources: ['resources'], projectScoped: false,
     compute: (ds, p) => {
       const rows = ds.logs.resources.filter((r) => inRange(r.month, p.start, p.end));
       return ratio(sum(rows, 'allocated'), sum(rows, 'available'), rows.length);
     },
   },
   {
-    key: 'successRate', num: 10, unit: 'pct', basis: 'ytd', sources: ['projects'], projectScoped: true, smallSample: 5,
+    key: 'successRate', num: 10, group: 'pm', unit: 'pct', basis: 'ytd', sources: ['projects'], projectScoped: true, smallSample: 5,
     compute: (ds, p, s) => {
       const done = completedYtd(ds, p, s);
       const tol = ds.settings.budgetTolerance;
@@ -169,7 +176,7 @@ export const KPIS: KpiDef[] = [
     },
   },
   {
-    key: 'milestoneRate', num: 11, unit: 'pct', basis: 'month', sources: ['milestones'], projectScoped: true,
+    key: 'milestoneRate', num: 11, group: 'pm', unit: 'pct', basis: 'month', sources: ['milestones'], projectScoped: true,
     compute: (ds, p, s) => {
       // only milestones already due at the evaluation date – a running month is not penalised for the days still to come
       const due = ds.logs.milestones.filter((r) => inRange(r.baselineDue, p.start, p.asOf) && inScope(s, r.project));
@@ -177,14 +184,14 @@ export const KPIS: KpiDef[] = [
     },
   },
   {
-    key: 'quality', num: 12, unit: 'pct', basis: 'month', sources: ['quality'], projectScoped: true,
+    key: 'quality', num: 12, group: 'pm', unit: 'pct', basis: 'month', sources: ['quality'], projectScoped: true,
     compute: (ds, p, s) => {
       const rows = ds.logs.quality.filter((r) => inRange(r.date, p.start, p.end) && inScope(s, r.project));
       return ratio(rows.filter((r) => r.firstTime === 'Yes').length, rows.length, rows.length);
     },
   },
   {
-    key: 'crTime', num: 13, unit: 'days', basis: 'month', sources: ['changes'], projectScoped: true,
+    key: 'crTime', num: 13, group: 'pm', unit: 'days', basis: 'month', sources: ['changes'], projectScoped: true,
     compute: (ds, p, s) =>
       avg(
         ds.logs.changes
@@ -193,7 +200,7 @@ export const KPIS: KpiDef[] = [
       ),
   },
   {
-    key: 'productivity', num: 14, unit: 'pct', basis: 'month', sources: ['resources'], projectScoped: false,
+    key: 'productivity', num: 14, group: 'pm', unit: 'pct', basis: 'month', sources: ['resources'], projectScoped: false,
     compute: (ds, p) =>
       avg(
         ds.logs.resources
@@ -202,36 +209,137 @@ export const KPIS: KpiDef[] = [
       ),
   },
   {
-    key: 'benefits', num: 15, unit: 'pct', basis: 'month', sources: ['benefits'], projectScoped: true,
+    key: 'benefits', num: 15, group: 'pm', unit: 'pct', basis: 'month', sources: ['benefits'], projectScoped: true,
     compute: (ds, p, s) => {
       const rows = ds.logs.benefits.filter((r) => inRange(r.date, p.start, p.end) && inScope(s, r.project));
       return ratio(sum(rows, 'realised'), sum(rows, 'planned'), rows.length);
     },
   },
   {
-    key: 'ci', num: 16, unit: 'count', basis: 'month', sources: ['ci'], projectScoped: false,
+    key: 'ci', num: 16, group: 'pm', unit: 'count', basis: 'month', sources: ['ci'], projectScoped: false,
     compute: (ds, p) => {
       const n = ds.logs.ci.filter((r) => r.status === 'Implemented' && inRange(r.implDate, p.start, p.end)).length;
       return { value: n, n };
     },
   },
   {
-    key: 'cumSpi', num: 17, unit: 'ratio', basis: 'ytd', sources: ['costSchedule'], projectScoped: true,
+    key: 'cumSpi', num: 17, group: 'pm', unit: 'ratio', basis: 'ytd', sources: ['costSchedule'], projectScoped: true,
     compute: (ds, p, s) => {
       const rows = costRows(ds, s, p.yearStart, p.end);
       return ratio(sum(rows, 'ev'), sum(rows, 'pv'), rows.length);
     },
   },
   {
-    key: 'cumCpi', num: 18, unit: 'ratio', basis: 'ytd', sources: ['costSchedule'], projectScoped: true,
+    key: 'cumCpi', num: 18, group: 'pm', unit: 'ratio', basis: 'ytd', sources: ['costSchedule'], projectScoped: true,
     compute: (ds, p, s) => {
       const rows = costRows(ds, s, p.yearStart, p.end);
       return ratio(sum(rows, 'ev'), sum(rows, 'ac'), rows.length);
     },
   },
+  // ================= safety =================
+  {
+    // total recordable injury frequency rate, per million hours worked, year to date
+    key: 'trifr', num: 26, group: 'safety', unit: 'rate', basis: 'ytd', sources: ['safety'], projectScoped: true,
+    compute: (ds, p, s) => {
+      const rows = ds.logs.safety.filter((r) => inRange(r.month, p.yearStart, p.end) && inScope(s, r.project));
+      const h = sum(rows, 'hoursWorked');
+      return { value: h ? (rows.reduce((a, r) => a + recordables(r), 0) * 1e6) / h : null, n: rows.length };
+    },
+  },
+  {
+    key: 'ltifr', num: 27, group: 'safety', unit: 'rate', basis: 'ytd', sources: ['safety'], projectScoped: true,
+    compute: (ds, p, s) => {
+      const rows = ds.logs.safety.filter((r) => inRange(r.month, p.yearStart, p.end) && inScope(s, r.project));
+      const h = sum(rows, 'hoursWorked');
+      return { value: h ? (sum(rows, 'lti') * 1e6) / h : null, n: rows.length };
+    },
+  },
+  {
+    // share of monitored blasts within the PPV and airblast limits
+    key: 'blastCompliance', num: 28, group: 'safety', unit: 'pct', basis: 'month', sources: ['safety'], projectScoped: true,
+    compute: (ds, p, s) => {
+      const rows = ds.logs.safety.filter((r) => inRange(r.month, p.start, p.end) && inScope(s, r.project));
+      const n = sum(rows, 'blastsMonitored');
+      const exc = sum(rows, 'ppvExceedances') + sum(rows, 'airblastExceedances');
+      return { value: n ? Math.max(0, 1 - exc / n) : null, n };
+    },
+  },
+  // ================= contractor operations =================
+  {
+    // average hours from submission to client authorisation, gates decided in the month
+    key: 'gateLag', num: 19, group: 'ops', unit: 'hours', basis: 'month', sources: ['gates'], projectScoped: true,
+    compute: (ds, p, s) =>
+      avg(
+        ds.logs.gates
+          .filter((g) => isISODateTime(g.submittedAt) && isISODateTime(g.approvedAt) && inRange(g.approvedAt, p.start, p.end) && inScope(s, g.project))
+          .map((g) => hoursBetween(g.submittedAt as string, g.approvedAt as string)),
+      ),
+  },
+  {
+    // verbal instructions still not confirmed in writing at the evaluation date (contractual exposure)
+    key: 'verbalOpen', num: 20, group: 'ops', unit: 'count', basis: 'month', sources: ['variations'], projectScoped: true,
+    compute: (ds, p, s) => {
+      const open = ds.logs.variations.filter(
+        (v) => v.instructionType === 'Verbal' && isISODate(v.instructed) && v.instructed <= p.asOf && inScope(s, v.project) &&
+          !(v.confirmedInWriting === 'Yes' && isISODate(v.confirmationDate) && v.confirmationDate <= p.asOf),
+      ).length;
+      return { value: open, n: open };
+    },
+  },
+  {
+    // value approved ÷ value claimed, variations decided year to date
+    key: 'variationRecovery', num: 21, group: 'ops', unit: 'pct', basis: 'ytd', sources: ['variations'], projectScoped: true, smallSample: 5,
+    compute: (ds, p, s) => {
+      const rows = ds.logs.variations.filter((v) => (v.status === 'Approved' || v.status === 'Rejected') && inRange(v.decisionDate, p.yearStart, p.end) && inScope(s, v.project));
+      return ratio(sum(rows, 'valueApproved'), sum(rows, 'valueClaimed'), rows.length);
+    },
+  },
+  {
+    key: 'drillPlan', num: 22, group: 'ops', unit: 'pct', basis: 'month', sources: ['production'], projectScoped: true,
+    compute: (ds, p, s) => {
+      const rows = ds.logs.production.filter((r) => inRange(r.date, p.start, p.end) && inScope(s, r.project));
+      return ratio(sum(rows, 'actualMetres'), sum(rows, 'plannedMetres'), rows.length);
+    },
+  },
+  {
+    key: 'blastPlan', num: 23, group: 'ops', unit: 'pct', basis: 'month', sources: ['production'], projectScoped: true,
+    compute: (ds, p, s) => {
+      const rows = ds.logs.production.filter((r) => inRange(r.date, p.start, p.end) && inScope(s, r.project));
+      return ratio(sum(rows, 'actualBlasts'), sum(rows, 'plannedBlasts'), rows.length);
+    },
+  },
+  {
+    // blasts that had to be re-blasted ÷ blasts fired: a design or execution quality signal
+    key: 'reblastRate', num: 24, group: 'ops', unit: 'pct', basis: 'month', sources: ['production'], projectScoped: true,
+    compute: (ds, p, s) => {
+      const rows = ds.logs.production.filter((r) => inRange(r.date, p.start, p.end) && inScope(s, r.project));
+      const fired = sum(rows, 'actualBlasts');
+      return ratio(sum(rows, 'reblasts'), fired, fired);
+    },
+  },
+  {
+    // bulk explosives (kg) issued vs blast designs; over-use is a cost leak, under-use a fragmentation risk
+    key: 'explosivesVar', num: 25, group: 'ops', unit: 'pct', basis: 'month', sources: ['explosives'], projectScoped: true,
+    compute: (ds, p, s) => {
+      const rows = ds.logs.explosives.filter((r) => inRange(r.month, p.start, p.end) && inScope(s, r.project) && String(r.unit).toLowerCase() === 'kg' && isNum(r.designed));
+      const designed = sum(rows, 'designed');
+      return ratio(sum(rows, 'issued') - designed, designed, rows.length);
+    },
+  },
+  {
+    key: 'handoverCompliance', num: 29, group: 'ops', unit: 'pct', basis: 'month', sources: ['handovers'], projectScoped: true,
+    compute: (ds, p, s) => {
+      const rows = ds.logs.handovers.filter((r) => inRange(r.date, p.start, p.end) && inScope(s, r.project));
+      return ratio(rows.filter((r) => r.overlapBriefing === 'Yes' && r.signedOff === 'Yes').length, rows.length, rows.length);
+    },
+  },
 ];
 
 export const KPI_BY_KEY = Object.fromEntries(KPIS.map((k) => [k.key, k])) as Record<KpiKey, KpiDef>;
+
+export const KPI_GROUPS: KpiGroup[] = ['safety', 'ops', 'pm'];
+/** display order: safety first, then contractor operations, then project management */
+export const KPIS_ORDERED: KpiDef[] = KPI_GROUPS.flatMap((g) => KPIS.filter((k) => k.group === g).sort((a, b) => a.num - b.num));
 
 function daysDiff(a: string, b: string) {
   return Math.round((Date.parse(b) - Date.parse(a)) / 86_400_000);
@@ -259,6 +367,21 @@ export const DEFAULT_TARGETS: Record<KpiKey, KpiTarget> = {
   // Contractor escalation rules: SPI < 0.90 → formal schedule notice; CPI < 0.95 → escalate
   cumSpi: { key: 'cumSpi', direction: 'Higher', target: 1, amber: 0.9, owner: '' },
   cumCpi: { key: 'cumCpi', direction: 'Higher', target: 1, amber: 0.95, owner: '' },
+  // contractor operations – escalate client authorisation delays beyond 48 h
+  gateLag: { key: 'gateLag', direction: 'Lower', target: 24, amber: 48, owner: '' },
+  // every verbal instruction must be confirmed in writing (variation claims depend on it)
+  verbalOpen: { key: 'verbalOpen', direction: 'Lower', target: 0, amber: 2, owner: '' },
+  variationRecovery: { key: 'variationRecovery', direction: 'Higher', target: 0.9, amber: 0.75, owner: '' },
+  drillPlan: { key: 'drillPlan', direction: 'Higher', target: 1, amber: 0.9, owner: '' },
+  blastPlan: { key: 'blastPlan', direction: 'Higher', target: 1, amber: 0.9, owner: '' },
+  reblastRate: { key: 'reblastRate', direction: 'Lower', target: 0.02, amber: 0.05, owner: '' },
+  // Band: over-use is a cost leak, under-use (under-charging) hurts fragmentation
+  explosivesVar: { key: 'explosivesVar', direction: 'Band', target: 0, amber: 0.05, greenLo: -0.03, greenHi: 0.03, amberLo: -0.05, amberHi: 0.05, owner: '' },
+  // per million hours worked, year to date – set these from your own baseline and client requirements
+  trifr: { key: 'trifr', direction: 'Lower', target: 2, amber: 4, owner: '' },
+  ltifr: { key: 'ltifr', direction: 'Lower', target: 0.5, amber: 1, owner: '' },
+  blastCompliance: { key: 'blastCompliance', direction: 'Higher', target: 1, amber: 0.98, owner: '' },
+  handoverCompliance: { key: 'handoverCompliance', direction: 'Higher', target: 1, amber: 0.9, owner: '' },
 };
 
 // ---------- RAG & trend ----------

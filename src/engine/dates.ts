@@ -9,6 +9,22 @@ export function isISODate(v: unknown): v is ISODate {
   return typeof v === 'string' && ISO_RE.test(v);
 }
 
+/** 'YYYY-MM-DDTHH:MM' – local site time, no timezone (approval gates are measured in hours) */
+const ISO_DT_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
+export function isISODateTime(v: unknown): v is string {
+  return typeof v === 'string' && ISO_DT_RE.test(v);
+}
+/** the calendar day of a date or date-time value */
+export function dayOf(v: unknown): ISODate | null {
+  if (isISODate(v)) return v;
+  if (isISODateTime(v)) return v.slice(0, 10);
+  return null;
+}
+export function hoursBetween(from: string, to: string): number {
+  const p = (s: string) => Date.UTC(+s.slice(0, 4), +s.slice(5, 7) - 1, +s.slice(8, 10), +(s.slice(11, 13) || 0), +(s.slice(14, 16) || 0));
+  return (p(to) - p(from)) / 3_600_000;
+}
+
 export function toISO(d: Date): ISODate {
   const y = d.getUTCFullYear();
   const m = String(d.getUTCMonth() + 1).padStart(2, '0');
@@ -50,7 +66,8 @@ export function minDate(a: ISODate, b: ISODate): ISODate {
 }
 
 export function inRange(d: unknown, start: ISODate, end: ISODate): boolean {
-  return isISODate(d) && d >= start && d <= end;
+  const day = dayOf(d);
+  return day !== null && day >= start && day <= end;
 }
 
 /** The 12 reporting months of the year starting at yearStart. */

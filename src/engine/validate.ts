@@ -1,6 +1,6 @@
-import { isISODate, monthEnd, todayISO, type ISODate } from './dates.ts';
+import { dayOf, isISODate, isISODateTime, monthEnd, todayISO, type ISODate } from './dates.ts';
 import { KPI_BY_KEY, type Dataset } from './kpis.ts';
-import { LOGS, LOG_BY_KEY, type LogKey, type Row } from './schema.ts';
+import { LOGS, LOG_BY_KEY, stockDiscrepancy, type LogKey, type Row } from './schema.ts';
 
 export interface Finding {
   severity: 'error' | 'warning';
@@ -29,6 +29,9 @@ export function validateRow(ds: Dataset, log: LogKey, row: Row, today: ISODate =
       case 'date': case 'month':
         if (!isISODate(v)) f('error', 'badDate', fd.key);
         break;
+      case 'datetime':
+        if (!isISODateTime(v)) f('error', 'badDateTime', fd.key);
+        break;
       case 'number': case 'money': case 'percent': case 'score':
         if (!isNum(v)) f('error', 'badNumber', fd.key);
         else if ((fd.min !== undefined && v < fd.min) || (fd.max !== undefined && v > fd.max))
@@ -54,11 +57,14 @@ export function validateRow(ds: Dataset, log: LogKey, row: Row, today: ISODate =
 
   // ---- chronology ----
   const before = (a: string, b: string) => {
-    if (isISODate(row[a]) && isISODate(row[b]) && (row[b] as string) < (row[a] as string)) f('error', 'dateOrder', b, { a, b });
+    const x = row[a], y = row[b];
+    if ((isISODate(x) || isISODateTime(x)) && (isISODate(y) || isISODateTime(y)) && (y as string) < (x as string)) f('error', 'dateOrder', b, { a, b });
   };
   const notFuture = (k: string) => {
-    if (isISODate(row[k]) && (row[k] as string) > today) f('warning', 'futureActual', k);
+    const d = dayOf(row[k]);
+    if (d && d > today) f('warning', 'futureActual', k);
   };
+  const n = (k: string) => (isNum(row[k]) ? (row[k] as number) : 0);
 
   switch (log) {
     case 'projects':
@@ -118,12 +124,44 @@ export function validateRow(ds: Dataset, log: LogKey, row: Row, today: ISODate =
     case 'resources':
       if (isNum(row.allocated) && isNum(row.available) && row.allocated > row.available) f('warning', 'overAllocated', 'allocated');
       break;
+    case 'gates':
+      before('submittedAt', 'approvedAt');
+      notFuture('approvedAt');
+      if ((row.status === 'Approved' || row.status === 'Rejected') && !isISODateTime(row.approvedAt)) f('error', 'decisionNeedsTime', 'approvedAt');
+      if (row.status === 'Pending' && isISODateTime(row.approvedAt)) f('warning', 'pendingHasTime', 'approvedAt');
+      break;
+    case 'variations':
+      before('instructed', 'confirmationDate');
+      before('instructed', 'submittedDate');
+      before('submittedDate', 'decisionDate');
+      notFuture('decisionDate');
+      if (row.confirmedInWriting === 'Yes' && !isISODate(row.confirmationDate)) f('error', 'confirmationNeedsDate', 'confirmationDate');
+      if ((row.status === 'Approved' || row.status === 'Rejected') && !isISODate(row.decisionDate)) f('error', 'decisionNeedsDateVo', 'decisionDate');
+      if (row.status === 'Approved' && !isNum(row.valueApproved)) f('error', 'approvedNeedsValue', 'valueApproved');
+      if (isNum(row.valueApproved) && isNum(row.valueClaimed) && row.valueApproved > row.valueClaimed) f('warning', 'approvedOverClaim', 'valueApproved');
+      break;
+    case 'production':
+      notFuture('date');
+      if (n('reblasts') > n('actualBlasts')) f('error', 'reblastsOverBlasts', 'reblasts');
+      break;
+    case 'explosives': {
+      const disc = stockDiscrepancy(row);
+      if (disc !== null && Math.abs(disc) > 1e-9) f('warning', 'stockMismatch', 'closingCounted');
+      if (String(row.unit).toLowerCase() === 'kg' && !isNum(row.designed)) f('warning', 'designMissing', 'designed');
+      break;
+    }
+    case 'safety':
+      if (n('ppvExceedances') + n('airblastExceedances') > n('blastsMonitored')) f('error', 'exceedOverMonitored', 'ppvExceedances');
+      break;
+    case 'handovers':
+      if (row.outgoing && row.outgoing === row.incoming) f('warning', 'sameHandover', 'incoming');
+      break;
   }
 
   // ---- activity on a project after it was closed ----
   if (def.projectField && log !== 'costSchedule') {
     const p = ds.logs.projects.find((x) => x.code === row[def.projectField!]);
-    const d = row[def.dateField];
+    const d = dayOf(row[def.dateField]);
     if (p && (p.status === 'Completed' || p.status === 'Cancelled') && isISODate(p.actualFinish) && isISODate(d) && d > p.actualFinish) {
       const stillOpen =
         (log === 'milestones' && row.status !== 'Completed') ||
@@ -150,6 +188,14 @@ export function validateAll(ds: Dataset, today?: ISODate): Finding[] {
     if (seen.has(k)) out.push({ severity: 'error', log: 'costSchedule', rowId: r.id, field: 'month', code: 'duplicateMonth', params: { project: String(r.project), month: String(r.month) } });
     else seen.set(k, r.id);
   }
+  for (const [log, key] of [['safety', (r: Row) => `${r.project}|${r.month}`], ['explosives', (r: Row) => `${r.project}|${r.month}|${r.product}`]] as const) {
+    const seen = new Set<string>();
+    for (const r of ds.logs[log]) {
+      const k = key(r);
+      if (seen.has(k)) out.push({ severity: 'error', log, rowId: r.id, field: 'month', code: 'duplicateMonth', params: { project: String(r.project), month: String(r.month) } });
+      else seen.add(k);
+    }
+  }
   const seenB = new Set<string>();
   for (const r of ds.logs.benefits) {
     const k = `${r.code}|${r.date}`;
@@ -162,6 +208,6 @@ export function validateAll(ds: Dataset, today?: ISODate): Finding[] {
 /** true when the record's period is locked (Settings › Lock periods through). */
 export function isLocked(ds: Dataset, log: LogKey, row: Row): boolean {
   const lock = ds.settings.lockedThrough;
-  const d = row[LOG_BY_KEY[log].dateField];
-  return !!lock && isISODate(d) && d <= monthEnd(lock);
+  const d = dayOf(row[LOG_BY_KEY[log].dateField]);
+  return !!lock && d !== null && d <= monthEnd(lock);
 }

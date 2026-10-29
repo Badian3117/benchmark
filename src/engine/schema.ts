@@ -1,4 +1,4 @@
-import { daysBetween, isISODate, type ISODate } from './dates.ts';
+import { daysBetween, hoursBetween, isISODate, isISODateTime, type ISODate } from './dates.ts';
 
 export type LogKey =
   | 'projects'
@@ -13,7 +13,14 @@ export type LogKey =
   | 'benefits'
   | 'ci'
   | 'actions'
-  | 'targetRevisions';
+  | 'targetRevisions'
+  // contractor operations (Phase 3)
+  | 'gates'
+  | 'variations'
+  | 'production'
+  | 'explosives'
+  | 'safety'
+  | 'handovers';
 
 export type ListKey =
   | 'projectStatus'
@@ -29,7 +36,12 @@ export type ListKey =
   | 'owners'
   | 'sites'
   | 'stakeholderGroups'
-  | 'disciplines';
+  | 'disciplines'
+  | 'gateTypes'
+  | 'gateStatus'
+  | 'instructionTypes'
+  | 'variationStatus'
+  | 'explosiveProducts';
 
 export type FieldType =
   | 'text'
@@ -43,7 +55,8 @@ export type FieldType =
   | 'yesno'
   | 'list'
   | 'project' // reference to projects.code
-  | 'kpi'; // reference to a KPI key
+  | 'kpi' // reference to a KPI key
+  | 'datetime'; // 'YYYY-MM-DDTHH:MM' local site time
 
 export interface FieldDef {
   key: string;
@@ -56,10 +69,12 @@ export interface FieldDef {
   formOnly?: boolean;
 }
 
-export type ComputedType = 'number' | 'money' | 'percent' | 'ratio' | 'days' | 'text' | 'yesno';
+export type ComputedType = 'number' | 'money' | 'percent' | 'ratio' | 'days' | 'hours' | 'text' | 'yesno';
 
 export interface Ctx {
   asOf: ISODate;
+  /** evaluation moment for hour-based ages: now when asOf is today, else end of the asOf day */
+  now: string;
   budgetTolerance: number;
   projectsByCode: Map<string, Row>;
   /** direction of each KPI, for direction-aware 'Result' in the action log */
@@ -87,6 +102,8 @@ export interface LogDef {
   computed: ComputedDef[];
   /** KPI numbers this log feeds (for the sheet map) */
   feeds: number[];
+  /** navigation group: project management logs, or contractor operations */
+  group?: 'pm' | 'ops';
 }
 
 export interface Row {
@@ -151,6 +168,21 @@ export function actionResult(a: Row, ctx: Ctx): 'Improved' | 'No change' | 'Wors
   const dir = ctx.kpiDirection(String(a.kpi));
   if (dir === 'Band') return null; // judged by 'Target reached?' instead
   return (after > before) === (dir === 'Higher') ? 'Improved' : 'Worse';
+}
+
+/** hours between a gate's submission and its decision (or now, while pending) */
+export function gateWaitHours(g: Row, now: string): number | null {
+  if (!isISODateTime(g.submittedAt)) return null;
+  const end = isISODateTime(g.approvedAt) ? g.approvedAt : g.status === 'Pending' ? now : null;
+  return end && end >= g.submittedAt ? hoursBetween(g.submittedAt, end) : null;
+}
+/** counted closing stock minus book stock (opening + received − issued); ≠ 0 means unaccounted product */
+export function stockDiscrepancy(e: Row): number | null {
+  const n = [e.opening, e.received, e.issued, e.closingCounted].map((v) => num(v));
+  return n.some((v) => v === null) ? null : n[3]! - (n[0]! + n[1]! - n[2]!);
+}
+export function recordables(s: Row): number {
+  return ['lti', 'mti', 'rwi'].reduce((a, k) => a + (num(s[k]) ?? 0), 0);
 }
 
 // ---------- log definitions ----------
@@ -473,6 +505,150 @@ export const LOGS: LogDef[] = [
     ],
     computed: [],
   },
+  // ================= contractor operations =================
+  {
+    key: 'gates',
+    group: 'ops',
+    codeField: 'code',
+    idPrefix: 'G-',
+    dateField: 'submittedAt',
+    projectField: 'project',
+    feeds: [19],
+    fields: [
+      { key: 'code', type: 'text', required: true },
+      { key: 'project', type: 'project', required: true },
+      { key: 'block', type: 'text', required: true },
+      { key: 'gate', type: 'list', list: 'gateTypes', required: true },
+      { key: 'submittedAt', type: 'datetime', required: true },
+      { key: 'status', type: 'list', list: 'gateStatus', required: true },
+      { key: 'approvedAt', type: 'datetime' },
+      { key: 'approver', type: 'text' },
+      { key: 'verbalOnly', type: 'yesno' },
+      { key: 'remarks', type: 'longtext', formOnly: true },
+    ],
+    computed: [{ key: 'waitHours', type: 'hours', fn: (r, c) => gateWaitHours(r, c.now) }],
+  },
+  {
+    key: 'variations',
+    group: 'ops',
+    codeField: 'code',
+    idPrefix: 'VO-',
+    dateField: 'instructed',
+    projectField: 'project',
+    feeds: [20, 21],
+    fields: [
+      { key: 'code', type: 'text', required: true },
+      { key: 'project', type: 'project', required: true },
+      { key: 'instructed', type: 'date', required: true },
+      { key: 'instructedBy', type: 'text', required: true },
+      { key: 'instructionType', type: 'list', list: 'instructionTypes', required: true },
+      { key: 'confirmedInWriting', type: 'yesno' },
+      { key: 'confirmationDate', type: 'date' },
+      { key: 'description', type: 'longtext', required: true },
+      { key: 'valueClaimed', type: 'money', min: 0 },
+      { key: 'status', type: 'list', list: 'variationStatus', required: true },
+      { key: 'submittedDate', type: 'date' },
+      { key: 'decisionDate', type: 'date' },
+      { key: 'valueApproved', type: 'money', min: 0 },
+      { key: 'remarks', type: 'longtext', formOnly: true },
+    ],
+    computed: [
+      { key: 'daysToDecision', type: 'days', fn: (r) => diffDays(r.submittedDate, r.decisionDate) },
+      { key: 'recovery', type: 'percent', fn: (r) => (r.status === 'Approved' || r.status === 'Rejected' ? div(r.valueApproved ?? 0, r.valueClaimed) : null) },
+    ],
+  },
+  {
+    key: 'production',
+    group: 'ops',
+    dateField: 'date',
+    projectField: 'project',
+    feeds: [22, 23, 24],
+    fields: [
+      { key: 'date', type: 'date', required: true },
+      { key: 'project', type: 'project', required: true },
+      { key: 'location', type: 'text' },
+      { key: 'plannedMetres', type: 'number', min: 0 },
+      { key: 'actualMetres', type: 'number', min: 0 },
+      { key: 'plannedBlasts', type: 'number', min: 0 },
+      { key: 'actualBlasts', type: 'number', min: 0 },
+      { key: 'reblasts', type: 'number', min: 0 },
+      { key: 'misfires', type: 'number', min: 0 },
+      { key: 'remarks', type: 'longtext', formOnly: true },
+    ],
+    computed: [
+      { key: 'metresPct', type: 'percent', fn: (r) => div(r.actualMetres, r.plannedMetres) },
+      { key: 'blastsPct', type: 'percent', fn: (r) => div(r.actualBlasts, r.plannedBlasts) },
+    ],
+  },
+  {
+    key: 'explosives',
+    group: 'ops',
+    dateField: 'month',
+    projectField: 'project',
+    feeds: [25],
+    fields: [
+      { key: 'month', type: 'month', required: true },
+      { key: 'project', type: 'project', required: true },
+      { key: 'product', type: 'list', list: 'explosiveProducts', required: true },
+      { key: 'unit', type: 'text', required: true },
+      { key: 'opening', type: 'number', min: 0, required: true },
+      { key: 'received', type: 'number', min: 0, required: true },
+      { key: 'issued', type: 'number', min: 0, required: true },
+      { key: 'designed', type: 'number', min: 0 },
+      { key: 'closingCounted', type: 'number', min: 0, required: true },
+      { key: 'remarks', type: 'longtext', formOnly: true },
+    ],
+    computed: [
+      { key: 'bookClosing', type: 'number', fn: (r) => (num(r.opening) !== null && num(r.received) !== null && num(r.issued) !== null ? (r.opening as number) + (r.received as number) - (r.issued as number) : null) },
+      { key: 'discrepancy', type: 'number', fn: (r) => stockDiscrepancy(r) },
+      { key: 'designVar', type: 'percent', fn: (r) => (num(r.issued) !== null && num(r.designed) ? ((r.issued as number) - (r.designed as number)) / (r.designed as number) : null) },
+    ],
+  },
+  {
+    key: 'safety',
+    group: 'ops',
+    dateField: 'month',
+    projectField: 'project',
+    feeds: [26, 27, 28],
+    fields: [
+      { key: 'month', type: 'month', required: true },
+      { key: 'project', type: 'project', required: true },
+      { key: 'hoursWorked', type: 'number', min: 0, required: true },
+      { key: 'lti', type: 'number', min: 0 },
+      { key: 'mti', type: 'number', min: 0 },
+      { key: 'rwi', type: 'number', min: 0 },
+      { key: 'fai', type: 'number', min: 0 },
+      { key: 'nearMisses', type: 'number', min: 0 },
+      { key: 'blastsMonitored', type: 'number', min: 0 },
+      { key: 'ppvExceedances', type: 'number', min: 0 },
+      { key: 'airblastExceedances', type: 'number', min: 0 },
+      { key: 'envIncidents', type: 'number', min: 0 },
+      { key: 'remarks', type: 'longtext', formOnly: true },
+    ],
+    computed: [{ key: 'recordables', type: 'number', fn: (r) => recordables(r) }],
+  },
+  {
+    key: 'handovers',
+    group: 'ops',
+    codeField: 'code',
+    idPrefix: 'H-',
+    dateField: 'date',
+    projectField: 'project',
+    feeds: [29],
+    fields: [
+      { key: 'code', type: 'text', required: true },
+      { key: 'project', type: 'project', required: true },
+      { key: 'date', type: 'date', required: true },
+      { key: 'outgoing', type: 'list', list: 'owners', required: true },
+      { key: 'incoming', type: 'list', list: 'owners', required: true },
+      { key: 'overlapBriefing', type: 'yesno', required: true },
+      { key: 'openItems', type: 'longtext' },
+      { key: 'keyRisks', type: 'longtext' },
+      { key: 'pendingAuthorisations', type: 'longtext' },
+      { key: 'signedOff', type: 'yesno' },
+    ],
+    computed: [],
+  },
 ];
 
 /** How a log's rows are attached to a site on the server (drives permissions). */
@@ -481,6 +657,7 @@ export const SITE_SCOPE: Record<LogKey, SiteScope> = {
   projects: 'self', costSchedule: 'project', changes: 'project', risks: 'project', issues: 'project', surveys: 'project',
   resources: 'site', milestones: 'project', quality: 'project', benefits: 'project', ci: 'site', actions: 'projectOrSite',
   targetRevisions: 'global',
+  gates: 'project', variations: 'project', production: 'project', explosives: 'project', safety: 'project', handovers: 'project',
 };
 
 export const LOG_BY_KEY = Object.fromEntries(LOGS.map((l) => [l.key, l])) as Record<LogKey, LogDef>;
@@ -522,6 +699,12 @@ export const DEFAULT_LISTS: Record<ListKey, string[]> = {
   sites: [],
   stakeholderGroups: ['Client', 'Internal – Management', 'Subcontractor', 'Community', 'Regulator'],
   disciplines: ['Drill & Blast', 'Mining', 'Maintenance', 'Engineering', 'Projects'],
+  // contractor–owner approval gates (drill & blast cycle)
+  gateTypes: ['Pattern design', 'Bench release', 'As-drilled sign-off', 'Loading authorisation', 'Pre-blast inspection', 'All-clear', 'Post-blast inspection', 'Blast closeout'],
+  gateStatus: ['Pending', 'Approved', 'Rejected'],
+  instructionTypes: ['Written', 'Verbal'],
+  variationStatus: ['Instructed', 'Submitted', 'Approved', 'Rejected', 'Disputed'],
+  explosiveProducts: ['Bulk emulsion', 'ANFO', 'Packaged emulsion', 'Boosters', 'Electronic detonators', 'Non-electric detonators', 'Surface connectors'],
 };
 
 export function defaultSettings(today: ISODate): Settings {

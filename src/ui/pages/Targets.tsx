@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { KPIS, KPI_BY_KEY, type KpiKey, type KpiTarget } from '../../engine/kpis.ts';
+import { Fragment, useState } from 'react';
+import { KPIS_ORDERED, KPI_BY_KEY, type KpiKey, type KpiTarget } from '../../engine/kpis.ts';
 import { useI18n } from '../../i18n/index.ts';
 import { newId } from '../../io/ids.ts';
 import { useApp } from '../context.ts';
@@ -31,10 +31,12 @@ export function Targets() {
             </tr>
           </thead>
           <tbody>
-            {KPIS.map((k) => {
+            {KPIS_ORDERED.map((k, ki) => {
               const t = ds.targets[k.key];
               return (
-                <tr key={k.key}>
+                <Fragment key={k.key}>
+                {(ki === 0 || KPIS_ORDERED[ki - 1].group !== k.group) && <tr className="group-row"><td colSpan={9}>{d.kpiGroups[k.group]}</td></tr>}
+                <tr>
                   <td className="kpi-num">{k.num}</td>
                   <td style={{ minWidth: 200 }}>
                     <div className="kpi-name">{d.kpi[k.key].name}</div>
@@ -56,6 +58,7 @@ export function Targets() {
                   <td className="faint" style={{ fontSize: 12 }}>{k.sources.map((s) => d.logs[s].title).join(' + ')}</td>
                   <td>{admin && <button className="btn small" onClick={() => setEditing(k.key)}>{d.targets.edit}</button>}</td>
                 </tr>
+                </Fragment>
               );
             })}
           </tbody>

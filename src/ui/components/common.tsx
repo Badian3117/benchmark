@@ -82,6 +82,8 @@ export function formatValue(i: I18n, v: unknown, type: FieldType | ComputedType)
   if (v === null || v === undefined || v === '') return '';
   switch (type) {
     case 'date': return i.date(v);
+    case 'datetime': return typeof v === 'string' ? `${i.date(v.slice(0, 10))} ${v.slice(11, 16)}` : '';
+    case 'hours': return typeof v === 'number' ? i.num(v, 1) + ' h' : String(v);
     case 'month': return typeof v === 'string' ? i.monthLabel(v, true) : '';
     case 'money': return typeof v === 'number' ? i.num(v) : String(v);
     case 'percent': return typeof v === 'number' ? i.pct(v) : String(v);

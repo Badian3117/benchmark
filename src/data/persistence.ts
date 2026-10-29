@@ -20,6 +20,8 @@ export interface DesktopBridge {
   openExternal(url: string): Promise<void>;
   /** benchmark://auth/callback?code=… delivered by the OS after Microsoft sign-in */
   onAuthCallback(fn: (url: string) => void): void;
+  /** print the current page (report) to a PDF file chosen by the user */
+  printToPdf?(defaultName: string): Promise<string | null>;
 }
 
 declare global {

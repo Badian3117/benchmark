@@ -545,6 +545,7 @@ function fromWire(log: LogKey, w: WireRow): Row {
   for (const f of LOG_BY_KEY[log].fields) {
     let v = w[f.key] ?? null;
     if ((f.type === 'date' || f.type === 'month') && typeof v === 'string') v = v.slice(0, 10);
+    if (f.type === 'datetime' && typeof v === 'string') v = v.slice(0, 16);
     row[f.key] = v;
   }
   return row;
