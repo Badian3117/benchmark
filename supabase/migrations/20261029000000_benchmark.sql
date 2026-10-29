@@ -33,6 +33,11 @@ create table if not exists profiles (
   created_at timestamptz not null default now()
 );
 
+-- notification preferences (v0.4)
+alter table profiles add column if not exists lang text not null default 'en' check (lang in ('en', 'fr'));
+alter table profiles add column if not exists notify_digest boolean not null default true;
+alter table profiles add column if not exists notify_critical boolean not null default true;
+
 create table if not exists site_members (
   user_id uuid not null references profiles (id) on delete cascade,
   site_code text not null references sites (code) on update cascade,
@@ -80,6 +85,22 @@ create table if not exists org_settings (
   server_updated_at timestamptz not null default now()
 );
 create table if not exists kpi_targets (like org_settings including all);
+
+-- ---------- e-mail notifications (written by the bm-notify function with the service role) ----------
+create table if not exists notifications_sent (
+  user_id uuid not null references profiles (id) on delete cascade,
+  key text not null,
+  sent_at timestamptz not null default now(),
+  primary key (user_id, key)
+);
+
+-- users change their own notification preferences – and nothing else on their profile
+create or replace function bm_set_my_prefs(p_lang text, p_digest boolean, p_critical boolean) returns void
+language sql security definer set search_path = public as $$
+  update profiles set lang = case when p_lang in ('en', 'fr') then p_lang else lang end,
+                      notify_digest = coalesce(p_digest, notify_digest), notify_critical = coalesce(p_critical, notify_critical)
+   where id = auth.uid()
+$$;
 
 -- ---------- audit trail (append-only) ----------
 create table if not exists audit (
@@ -969,6 +990,7 @@ alter table site_members enable row level security;
 alter table org_settings enable row level security;
 alter table kpi_targets enable row level security;
 alter table audit enable row level security;
+alter table notifications_sent enable row level security; -- no policy: service role only
 
 drop policy if exists bm_read on sites;
 create policy bm_read on sites for select to authenticated using (bm_role() <> 'none' and bm_role() <> 'pending');
@@ -1318,4 +1340,7 @@ revoke all on all tables in schema public from anon;
 grant select, insert, update on all tables in schema public to authenticated;
 grant delete on site_members to authenticated; -- admins re-assign sites (policy bm_admin)
 grant execute on function bm_push(text, jsonb) to authenticated;
+revoke all on notifications_sent from authenticated, anon;
+grant execute on function bm_set_my_prefs(text, boolean, boolean) to authenticated;
+revoke execute on function bm_set_my_prefs(text, boolean, boolean) from anon;
 revoke execute on function bm_push(text, jsonb) from anon;

@@ -23,6 +23,7 @@ import { Guide } from './pages/Guide.tsx';
 import { desktop } from '../data/persistence.ts';
 import { SessionContext, type SessionState } from './session.ts';
 import { SyncChip } from './components/SyncChip.tsx';
+import { Notifier } from './components/Notifier.tsx';
 import { SyncPage } from './pages/Sync.tsx';
 import { AdminPage } from './pages/Admin.tsx';
 import { SitesOverview } from './pages/Sites.tsx';
@@ -212,6 +213,7 @@ export function App({ store, session }: { store: Store; session: SessionState })
           </div>
         </div>
         {editing && <RecordEditor {...editing} onClose={() => setEditing(null)} />}
+        <Notifier />
       </AppContext.Provider>
       </SessionContext.Provider>
     </I18nContext.Provider>

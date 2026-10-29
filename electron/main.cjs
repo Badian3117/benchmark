@@ -1,7 +1,7 @@
 // BenchMark desktop shell: one window, the app served from a private app:// scheme,
 // and a small file API (database load/save, open/save dialogs). The renderer has no
 // Node access (contextIsolation + sandbox); everything goes through preload.cjs.
-const { app, BrowserWindow, ipcMain, dialog, shell, protocol, net, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, protocol, net, Menu, Notification } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 const { pathToFileURL } = require('node:url');
@@ -21,6 +21,8 @@ protocol.registerSchemesAsPrivileged([
 ]);
 
 if (!app.requestSingleInstanceLock()) app.quit();
+// Windows shows toast notifications only for an app with an explicit AppUserModelID
+if (process.platform === 'win32') app.setAppUserModelId('com.corica.benchmark');
 
 /** Write to a temp file and rename: a crash mid-write can never corrupt the database. */
 function atomicWrite(file, bytes) {
@@ -132,6 +134,19 @@ app.whenReady().then(() => {
     const pdf = await win.webContents.printToPDF({ pageSize: 'A4', printBackground: true, margins: { marginType: 'default' } });
     atomicWrite(r.filePath, pdf);
     return r.filePath;
+  });
+  ipcMain.handle('app:notify', (_e, title, body, payload) => {
+    if (!Notification.isSupported()) return false;
+    const n = new Notification({ title: String(title), body: String(body), icon: path.join(__dirname, '..', 'build', 'icon.png') });
+    n.on('click', () => {
+      if (!win) return;
+      if (win.isMinimized()) win.restore();
+      win.show();
+      win.focus();
+      win.webContents.send('notify:click', payload ?? null);
+    });
+    n.show();
+    return true;
   });
   ipcMain.on('auth:ready', () => {
     rendererReady = true;

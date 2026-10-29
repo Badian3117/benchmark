@@ -10,6 +10,7 @@ import { todayISO } from '../engine/dates.ts';
 import { DEFAULT_TARGETS, type Dataset, type KpiKey, type KpiTarget } from '../engine/kpis.ts';
 import { LOGS, LOG_BY_KEY, DEFAULT_LISTS, defaultSettings, type LogKey, type Row, type Settings } from '../engine/schema.ts';
 import { getPersistence, type Persistence } from './persistence.ts';
+import { fromWire, type WireRow } from '../engine/wire.ts';
 
 const NUMERIC = new Set(['number', 'money', 'percent', 'score']);
 const q = (s: string) => `"${s.replace(/"/g, '""')}"`;
@@ -25,15 +26,7 @@ export interface AuditEntry {
   summary: string;
 }
 
-/** A row as exchanged with the server */
-export interface WireRow {
-  id: string;
-  deleted: boolean;
-  updated_at: string | null;
-  base_rev?: number;
-  rev?: number;
-  [field: string]: unknown;
-}
+export type { WireRow } from '../engine/wire.ts';
 
 export interface SyncIssue {
   seq: number;
@@ -536,18 +529,6 @@ export class Store {
 function toRow(log: LogKey, r: Record<string, SqlValue>): Row {
   const row: Row = { id: String(r.id) };
   for (const f of LOG_BY_KEY[log].fields) row[f.key] = r[f.key] ?? null;
-  return row;
-}
-
-/** server row → local row (only the log's fields; dates normalised to YYYY-MM-DD) */
-function fromWire(log: LogKey, w: WireRow): Row {
-  const row: Row = { id: w.id };
-  for (const f of LOG_BY_KEY[log].fields) {
-    let v = w[f.key] ?? null;
-    if ((f.type === 'date' || f.type === 'month') && typeof v === 'string') v = v.slice(0, 10);
-    if (f.type === 'datetime' && typeof v === 'string') v = v.slice(0, 16);
-    row[f.key] = v;
-  }
   return row;
 }
 

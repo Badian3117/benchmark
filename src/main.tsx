@@ -12,7 +12,7 @@ import { SyncEngine } from './sync/engine.ts';
 import { RestTransport } from './sync/transport.ts';
 import { AdminApi } from './sync/admin.ts';
 import {
-  currentSession, listenForOAuthCallback, loadProfile, serverConfig, signOut, supabase, type ServerConfig,
+  currentSession, listenForOAuthCallback, loadProfile, saveMyPrefs, serverConfig, signOut, supabase, type ServerConfig,
 } from './sync/session.ts';
 import './ui/styles.css';
 
@@ -103,6 +103,12 @@ function Connected({ cfg }: { cfg: ServerConfig }) {
             await stopActive();
             await signOut(sb);
             setPhase({ kind: 'login' });
+          },
+          savePrefs: async (prefs) => {
+            const t = await token();
+            if (!t) throw new Error('Not signed in');
+            await saveMyPrefs(cfg, t, prefs);
+            who.prefs = prefs;
           },
           // Microsoft accounts have no BenchMark password
           changePassword: session.user.app_metadata?.provider === 'azure' ? null : async (password: string) => {

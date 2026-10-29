@@ -1,7 +1,7 @@
 {
   "name": "benchmark",
   "productName": "BenchMark",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "BenchMark \u2013 project KPI control for mining contractors",
   "author": "CORICA Mining Services",
   "private": true,
@@ -10,7 +10,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
-    "test": "vitest run tests/engine.test.ts tests/contractor.test.ts",
+    "test": "vitest run tests/engine.test.ts tests/contractor.test.ts tests/notify.test.ts",
     "start": "npm run build && electron .",
     "make:sample": "node scripts/make-sample.mjs",
     "dist:win": "npm run build && electron-builder --win nsis --x64",
@@ -18,7 +18,8 @@
     "test:server": "vitest run tests/server",
     "gen:sql": "node scripts/gen-sql.ts > supabase/migrations/20261029000000_benchmark.sql",
     "test:e2e:connected": "scripts/e2e-connected.sh",
-    "test:e2e": "node tests/e2e.cjs && node tests/e2e-io.cjs && node tests/e2e-contractor.cjs"
+    "test:e2e": "node tests/e2e.cjs && node tests/e2e-io.cjs && node tests/e2e-contractor.cjs && node tests/e2e-notify.cjs",
+    "gen:functions": "node scripts/gen-functions.mjs"
   },
   "devDependencies": {
     "@supabase/supabase-js": "^2.117.3",

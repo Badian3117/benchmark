@@ -22,6 +22,9 @@ export interface DesktopBridge {
   onAuthCallback(fn: (url: string) => void): void;
   /** print the current page (report) to a PDF file chosen by the user */
   printToPdf?(defaultName: string): Promise<string | null>;
+  /** Windows / macOS notification; clicking it brings the app forward and calls onNotifyClick */
+  notify?(title: string, body: string, payload?: { log?: string; rowId?: string } | null): Promise<boolean>;
+  onNotifyClick?(fn: (payload: { log?: string; rowId?: string } | null) => void): void;
 }
 
 declare global {

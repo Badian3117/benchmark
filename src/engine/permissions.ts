@@ -14,6 +14,8 @@ export interface Who {
   owner: string;
   role: Role;
   sites: string[];
+  /** e-mail preferences (server side) */
+  prefs?: { lang: 'en' | 'fr'; digest: boolean; critical: boolean };
 }
 
 /** null = standalone (no server): everything is allowed */

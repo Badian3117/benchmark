@@ -8,6 +8,8 @@ import pg from 'pg';
 
 const PORT = Number(process.argv[2] ?? 54321);
 const SECRET = 'test-secret';
+/** the service role key bypasses row-level security, as in Supabase */
+const SERVICE_KEY = 'service-role-test';
 const pool = new pg.Pool({ connectionString: process.env.PGURL, max: 4 });
 const b64 = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
 function jwt(sub, email) {
@@ -24,8 +26,10 @@ async function as(claims, sql, params = []) {
   const c = await pool.connect();
   try {
     await c.query('begin');
-    await c.query('set local role authenticated');
-    await c.query(`select set_config('request.jwt.claims', $1, true)`, [JSON.stringify(claims)]);
+    if (claims !== 'service') {
+      await c.query('set local role authenticated');
+      await c.query(`select set_config('request.jwt.claims', $1, true)`, [JSON.stringify(claims)]);
+    }
     const r = await c.query(sql, params);
     await c.query('commit');
     return r.rows;
@@ -83,7 +87,8 @@ http.createServer(async (req, res) => {
     }
     // ---------- rest ----------
     if (!url.pathname.startsWith('/rest/v1/')) return send(404, { message: 'not found' });
-    const claims = verify((req.headers.authorization ?? '').replace('Bearer ', ''));
+    const bearer = (req.headers.authorization ?? '').replace('Bearer ', '');
+    const claims = bearer === SERVICE_KEY ? 'service' : verify(bearer);
     if (!claims) return send(401, { message: 'JWT invalid' });
     const path = decodeURIComponent(url.pathname.slice('/rest/v1/'.length));
     if (path === 'rpc/bm_push') {
