@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { makeCtx } from '../../engine/analysis.ts';
+import { makeCtx, nowLocal } from '../../engine/analysis.ts';
 import { monthStart } from '../../engine/dates.ts';
 import { KPIS, KPI_BY_KEY } from '../../engine/kpis.ts';
 import { LOG_BY_KEY, type FieldDef, type LogKey, type Row } from '../../engine/schema.ts';
@@ -34,11 +34,15 @@ export function RecordEditor({ log, rowId, preset, onClose }: { log: LogKey; row
     const dateF = def.fields.find((f) => f.key === def.dateField);
     if (dateF?.type === 'month') r[def.dateField] = period.month;
     else if (dateF?.type === 'date') r[def.dateField] = today;
+    else if (dateF?.type === 'datetime') r[def.dateField] = nowLocal();
     if (log === 'actions' || log === 'risks' || log === 'issues') r.status = 'Open';
     if (log === 'changes') r.decision = 'Pending';
     if (log === 'projects') r.status = 'Active';
     if (log === 'milestones') r.status = 'Not started';
     if (log === 'ci') r.status = 'Proposed';
+    if (log === 'gates') r.status = 'Pending';
+    if (log === 'variations') { r.status = 'Instructed'; r.instructionType = 'Written'; }
+    if (log === 'explosives') r.unit = 'kg';
     return { ...r, ...presetFor(log, who), ...preset };
   });
   const [touched, setTouched] = useState(false);
@@ -83,6 +87,8 @@ export function RecordEditor({ log, rowId, preset, onClose }: { log: LogKey; row
         return <textarea {...common} value={String(v ?? '')} onChange={(e) => set(f.key, e.target.value || null)} />;
       case 'date':
         return <input {...common} type="date" value={String(v ?? '')} onChange={(e) => set(f.key, e.target.value || null)} />;
+      case 'datetime':
+        return <input {...common} type="datetime-local" value={typeof v === 'string' ? v.slice(0, 16) : ''} onChange={(e) => set(f.key, e.target.value ? e.target.value.slice(0, 16) : null)} />;
       case 'month':
         return <input {...common} type="month" value={typeof v === 'string' ? v.slice(0, 7) : ''} onChange={(e) => set(f.key, e.target.value ? monthStart(e.target.value + '-01') : null)} />;
       case 'number': case 'money': case 'percent': {

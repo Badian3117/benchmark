@@ -26,6 +26,7 @@ import { SyncChip } from './components/SyncChip.tsx';
 import { SyncPage } from './pages/Sync.tsx';
 import { AdminPage } from './pages/Admin.tsx';
 import { SitesOverview } from './pages/Sites.tsx';
+import { HandoverPack, MonthlyReport } from './pages/Report.tsx';
 
 type Theme = 'system' | 'light' | 'dark';
 
@@ -107,12 +108,20 @@ export function App({ store, session }: { store: Store; session: SessionState })
               <NavItem p="health" label={d.nav.health} />
               <NavItem p="tracking" label={d.nav.tracking} />
               <NavItem p="trends" label={d.nav.trends} />
+              <NavItem p="report" label={d.nav.report} />
             </div>
             <div className="nav-group">
               <div className="nav-title">{d.nav.capture}</div>
-              {LOGS.filter((l) => l.key !== 'targetRevisions' && l.key !== 'actions').map((l) => (
+              {LOGS.filter((l) => l.group !== 'ops' && l.key !== 'targetRevisions' && l.key !== 'actions').map((l) => (
                 <NavItem key={l.key} p="log" l={l.key} label={d.logs[l.key].title} badge={errorsByLog.get(l.key)} err />
               ))}
+            </div>
+            <div className="nav-group">
+              <div className="nav-title">{d.nav.ops}</div>
+              {LOGS.filter((l) => l.group === 'ops').map((l) => (
+                <NavItem key={l.key} p="log" l={l.key} label={d.logs[l.key].title} badge={errorsByLog.get(l.key)} err />
+              ))}
+              <NavItem p="handover" label={d.nav.handover} />
             </div>
             <div className="nav-group">
               <div className="nav-title">{d.nav.control}</div>
@@ -195,6 +204,8 @@ export function App({ store, session }: { store: Store; session: SessionState })
               {page === 'audit' && <AuditPage />}
               {page === 'guide' && <Guide />}
               {page === 'sites' && <SitesOverview />}
+              {page === 'report' && <MonthlyReport />}
+              {page === 'handover' && <HandoverPack />}
               {page === 'sync' && session.mode === 'connected' && <SyncPage />}
               {page === 'admin' && session.admin && <AdminPage />}
             </main>

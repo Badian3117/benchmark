@@ -1,4 +1,5 @@
-import { KPIS } from '../../engine/kpis.ts';
+import { Fragment } from 'react';
+import { KPIS, KPIS_ORDERED } from '../../engine/kpis.ts';
 import { useI18n } from '../../i18n/index.ts';
 import { useApp } from '../context.ts';
 import { RagChip, targetRule } from '../components/common.tsx';
@@ -28,11 +29,14 @@ export function Tracking() {
             </tr>
           </thead>
           <tbody>
-            {KPIS.map((k) => {
+            {KPIS_ORDERED.map((k, ki) => {
               const cells = tracking.rows[k.key];
+              const header = ki === 0 || KPIS_ORDERED[ki - 1].group !== k.group;
               const latest = [...cells.slice(0, idx + 1)].reverse().find((c) => c && c.value !== null) ?? null;
               return (
-                <tr key={k.key}>
+                <Fragment key={k.key}>
+                {header && <tr className="group-row"><td colSpan={18}>{d.kpiGroups[k.group]}</td></tr>}
+                <tr>
                   <td className="kpi-num">{k.num}</td>
                   <td className="kpi-name" style={{ whiteSpace: 'nowrap' }}>{d.kpi[k.key].name}</td>
                   <td className="num faint">{targetRule(ds.targets[k.key], k.unit, i)}</td>
@@ -46,6 +50,7 @@ export function Tracking() {
                   <td className="num">{cells.filter((c) => c?.rag === 'GREEN').length}</td>
                   <td className="num">{cells.filter((c) => c?.rag === 'RED').length}</td>
                 </tr>
+                </Fragment>
               );
             })}
             <tr>

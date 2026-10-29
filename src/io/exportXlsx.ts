@@ -2,7 +2,7 @@
 // data from row 5), so an exported file can be re-imported without loss. Calculated
 // columns are prefixed with '= ' and ignored on import.
 import type ExcelJS from 'exceljs';
-import { KPIS, rag, type Dataset, type Tracking } from '../engine/kpis.ts';
+import { KPIS, KPIS_ORDERED, rag, type Dataset, type Tracking } from '../engine/kpis.ts';
 import { LOGS, type ComputedType, type FieldType } from '../engine/schema.ts';
 import { makeCtx } from '../engine/analysis.ts';
 import { en } from '../i18n/en.ts';
@@ -14,6 +14,7 @@ const RAG_FILL: Record<string, string> = { GREEN: 'FFC6EFCE', AMBER: 'FFFFEB9C',
 
 function numFmt(t: FieldType | ComputedType): string | undefined {
   if (t === 'date' || t === 'month') return 'dd-mmm-yyyy';
+  if (t === 'datetime') return 'dd-mmm-yyyy hh:mm';
   if (t === 'money') return '#,##0';
   if (t === 'percent') return '0.0%';
   if (t === 'ratio') return '0.00';
@@ -22,9 +23,9 @@ function numFmt(t: FieldType | ComputedType): string | undefined {
 
 function toCell(v: unknown, t: FieldType | ComputedType): ExcelJS.CellValue {
   if (v === null || v === undefined || v === '') return null;
-  if ((t === 'date' || t === 'month') && typeof v === 'string') {
-    const [y, m, d] = v.split('-').map(Number);
-    return new Date(Date.UTC(y, m - 1, d));
+  if ((t === 'date' || t === 'month' || t === 'datetime') && typeof v === 'string') {
+    const [y, m, d] = v.slice(0, 10).split('-').map(Number);
+    return new Date(Date.UTC(y, m - 1, d, Number(v.slice(11, 13) || 0), Number(v.slice(14, 16) || 0)));
   }
   return v as ExcelJS.CellValue;
 }
@@ -65,7 +66,7 @@ export function buildWorkbook(ExcelJSmod: typeof ExcelJS, o: ExportOptions): Exc
   const months = tracking.months.map((m) => i18n.monthLabel(m));
   header(kt, `${i18n.d.tracking.title} – ${ds.settings.orgName}`, `${o.scopeLabel} · ${i18n.t(i18n.d.dashboard.asOf, { d: i18n.date(o.asOf) })}`,
     ['#', 'KPI', i18n.d.targets.rule, ...months]);
-  KPIS.forEach((k, i) => {
+  KPIS_ORDERED.forEach((k, i) => {
     const row = kt.getRow(5 + i);
     row.getCell(1).value = k.num;
     row.getCell(2).value = i18n.d.kpi[k.key].name;

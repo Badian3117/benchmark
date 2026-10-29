@@ -112,14 +112,14 @@ d('BenchMark sync', () => {
   it('a PM receives only their site; an executive receives everything', async () => {
     const camara = await laptop(U.camara);
     await camara.sync.run();
-    expect(codes(camara.store)).toEqual(['P01', 'P04', 'P07']);
-    expect(camara.store.ds.logs.costSchedule.every((r) => ['P01', 'P04', 'P07'].includes(String(r.project)))).toBe(true);
+    expect(codes(camara.store)).toEqual(['P01', 'P04', 'P07', 'P09']);
+    expect(camara.store.ds.logs.costSchedule.every((r) => ['P01', 'P04', 'P07', 'P09'].includes(String(r.project)))).toBe(true);
     expect(camara.store.ds.settings.lists.sites).toEqual([KGM, SIG].sort());
     expect(camara.store.ds.settings.orgName).toBe(sample.settings.orgName);
 
     const coo = await laptop(U.coo);
     await coo.sync.run();
-    expect(codes(coo.store)).toEqual(['P01', 'P02', 'P03', 'P04', 'P05', 'P06', 'P07', 'P08']);
+    expect(codes(coo.store)).toEqual(['P01', 'P02', 'P03', 'P04', 'P05', 'P06', 'P07', 'P08', 'P09']);
   });
 
   it('the executive sees exactly the same KPI numbers as the source data', async () => {

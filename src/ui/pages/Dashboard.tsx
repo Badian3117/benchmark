@@ -1,6 +1,6 @@
-import { useMemo } from 'react';
+import { Fragment, useMemo } from 'react';
 import { actionCounts, snapshot, type Alert } from '../../engine/analysis.ts';
-import { KPIS, trend, type KpiKey } from '../../engine/kpis.ts';
+import { KPIS, KPIS_ORDERED, trend, type KpiKey } from '../../engine/kpis.ts';
 import { useI18n } from '../../i18n/index.ts';
 import { useApp } from '../context.ts';
 import { useSession } from '../session.ts';
@@ -26,7 +26,7 @@ export function Dashboard() {
   const { who } = useSession();
   const snap = useMemo(() => snapshot(ds, period, scope), [ds, period, scope]);
 
-  const rows = KPIS.map((k) => {
+  const rows = KPIS_ORDERED.map((k) => {
     const cur = tracking.rows[k.key][idx];
     const prev = idx > 0 ? tracking.rows[k.key][idx - 1] : null;
     const t = ds.targets[k.key];
@@ -101,8 +101,12 @@ export function Dashboard() {
                 </tr>
               </thead>
               <tbody>
-                {rows.map(({ k, cur: c, prev, t, tr, acts }) => (
-                  <tr key={k.key}>
+                {rows.map(({ k, cur: c, prev, t, tr, acts }, idx) => (
+                  <Fragment key={k.key}>
+                  {(idx === 0 || rows[idx - 1].k.group !== k.group) && (
+                    <tr className="group-row"><td colSpan={10}>{d.kpiGroups[k.group]}</td></tr>
+                  )}
+                  <tr>
                     <td className="kpi-num">{k.num}</td>
                     <td>
                       <div className="kpi-name">{d.kpi[k.key].name}</div>
@@ -130,6 +134,7 @@ export function Dashboard() {
                       )}
                     </td>
                   </tr>
+                  </Fragment>
                 ))}
               </tbody>
             </table>
@@ -161,6 +166,13 @@ export function Dashboard() {
           <span className="k">{d.dashboard.ciImplemented}</span><span className="v">{snap.ciImplemented}</span>
           <span className="k sub">{d.dashboard.ciVerified}</span><span className="v">{snap.ciVerified}</span>
           <span className="k">{d.dashboard.targetRevisions}</span><span className="v">{snap.targetRevisions}</span>
+          <hr />
+          <span className="k">{d.dashboard.hoursYtd}</span><span className="v">{i.num(snap.hoursYtd)}</span>
+          <span className="k sub">{d.dashboard.ltiYtd}</span><span className="v" style={{ color: snap.ltiYtd ? 'var(--critical-ink)' : undefined }}>{snap.ltiYtd}</span>
+          <span className="k">{d.dashboard.pendingGates}</span><span className="v">{snap.pendingGates}</span>
+          <span className="k">{d.dashboard.openVerbal}</span><span className="v" style={{ color: snap.openVerbal ? 'var(--critical-ink)' : undefined }}>{snap.openVerbal}</span>
+          <span className="k">{d.dashboard.vosPendingValue}</span><span className="v">{i.money(snap.variationsPendingValue, cur)}</span>
+          <span className="k">{d.dashboard.vosApprovedValue}</span><span className="v">{i.money(snap.variationsApprovedValue, cur)}</span>
         </div>
       </div>
     </>

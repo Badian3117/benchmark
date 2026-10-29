@@ -1,10 +1,19 @@
 import { addMonths, daysBetween, inRange, isISODate, makePeriod, monthEnd, type ISODate, type Period } from './dates.ts';
 import { KPIS, rag, targetFor, type Dataset, type KpiKey, type Rag, type Scope, type Tracking } from './kpis.ts';
-import { actionDueStatus, milestoneOnTime, riskScore, type Ctx, type Row } from './schema.ts';
+import { actionDueStatus, gateWaitHours, milestoneOnTime, riskScore, stockDiscrepancy, type Ctx, type Row } from './schema.ts';
 
-export function makeCtx(ds: Dataset, asOf: ISODate): Ctx {
+/** current local date-time 'YYYY-MM-DDTHH:MM' */
+export function nowLocal(): string {
+  const d = new Date();
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+export function makeCtx(ds: Dataset, asOf: ISODate, now: string = nowLocal()): Ctx {
   return {
     asOf,
+    // hour-based ages run to the evaluation moment: now for the running month, end of day otherwise
+    now: now.slice(0, 10) <= asOf ? now : asOf + 'T23:59',
     budgetTolerance: ds.settings.budgetTolerance,
     projectsByCode: new Map(ds.logs.projects.map((p) => [String(p.code), p])),
     kpiDirection: (k) => targetFor(ds, k)?.direction ?? 'Higher',
@@ -168,6 +177,45 @@ export function alerts(ds: Dataset, tracking: Tracking, p: Period, scope: Scope)
         out.push({ severity: 'warning', code: 'crPending', params: { id: String(c.code), days: d, project: String(c.project) }, log: 'changes', rowId: c.id, project: String(c.project) });
     }
 
+  // ---------- contractor operations ----------
+  const ctx = makeCtx(ds, p.asOf);
+  for (const g of ds.logs.gates)
+    if (inScope(scope, g.project) && g.status === 'Pending') {
+      const h = gateWaitHours(g, ctx.now);
+      if (h !== null && h > 48)
+        out.push({ severity: h > 96 ? 'critical' : 'serious', code: 'gatePending', params: { id: String(g.code), gate: String(g.gate ?? ''), block: String(g.block ?? ''), project: String(g.project), hours: Math.round(h) }, log: 'gates', rowId: g.id, project: String(g.project) });
+    }
+  for (const v of ds.logs.variations) {
+    if (!inScope(scope, v.project) || !isISODate(v.instructed) || v.instructed > p.asOf) continue;
+    const confirmed = v.confirmedInWriting === 'Yes' && isISODate(v.confirmationDate) && v.confirmationDate <= p.asOf;
+    // written confirmation of a verbal instruction is expected within 2 days
+    if (v.instructionType === 'Verbal' && !confirmed && daysBetween(v.instructed, p.asOf) > 2)
+      out.push({ severity: 'serious', code: 'verbalUnconfirmed', params: { id: String(v.code), project: String(v.project), date: v.instructed }, log: 'variations', rowId: v.id, project: String(v.project) });
+    if (v.status === 'Submitted' && isISODate(v.submittedDate) && daysBetween(v.submittedDate, p.asOf) > 30)
+      out.push({ severity: 'warning', code: 'variationPending', params: { id: String(v.code), project: String(v.project), days: daysBetween(v.submittedDate, p.asOf) }, log: 'variations', rowId: v.id, project: String(v.project) });
+  }
+  for (const e of ds.logs.explosives) {
+    if (!inScope(scope, e.project) || !inRange(e.month, p.start, p.end)) continue;
+    const disc = stockDiscrepancy(e);
+    if (disc !== null && Math.abs(disc) > 1e-9) {
+      // unaccounted initiating systems are a security matter, not just a cost one
+      const security = /detonator|booster|connector/i.test(String(e.product));
+      out.push({ severity: security ? 'critical' : 'serious', code: 'stockDiscrepancy', params: { project: String(e.project), product: String(e.product), qty: +disc.toFixed(2), unit: String(e.unit ?? '') }, log: 'explosives', rowId: e.id, project: String(e.project) });
+    }
+  }
+  for (const s of ds.logs.safety) {
+    if (!inScope(scope, s.project) || !inRange(s.month, p.start, p.end)) continue;
+    const num = (k: string) => (isNum(s[k]) ? (s[k] as number) : 0);
+    if (num('lti') > 0) out.push({ severity: 'critical', code: 'lti', params: { project: String(s.project), n: num('lti') }, log: 'safety', rowId: s.id, project: String(s.project) });
+    const exc = num('ppvExceedances') + num('airblastExceedances');
+    if (exc > 0) out.push({ severity: 'serious', code: 'exceedance', params: { project: String(s.project), n: exc }, log: 'safety', rowId: s.id, project: String(s.project) });
+  }
+  const misfires = new Map<string, number>();
+  for (const r of ds.logs.production)
+    if (inScope(scope, r.project) && inRange(r.date, p.start, p.end) && isNum(r.misfires) && r.misfires > 0)
+      misfires.set(String(r.project), (misfires.get(String(r.project)) ?? 0) + (r.misfires as number));
+  for (const [project, n] of misfires) out.push({ severity: 'serious', code: 'misfire', params: { project, n }, log: 'production', project });
+
   // close the loop: every RED KPI needs a live corrective action
   const idx = tracking.reportIdx;
   for (const k of KPIS) {
@@ -223,6 +271,17 @@ export function snapshot(ds: Dataset, p: Period, scope: Scope) {
     ciImplemented: ciDone.length,
     ciVerified: ciDone.filter((c) => c.verified === 'Yes').length,
     targetRevisions: ds.logs.targetRevisions.length,
+    // contractor operations
+    pendingGates: ds.logs.gates.filter((g) => inScope(scope, g.project) && g.status === 'Pending').length,
+    openVerbal: ds.logs.variations.filter((v) => inScope(scope, v.project) && v.instructionType === 'Verbal' && v.confirmedInWriting !== 'Yes').length,
+    variationsPendingValue: ds.logs.variations
+      .filter((v) => inScope(scope, v.project) && (v.status === 'Instructed' || v.status === 'Submitted' || v.status === 'Disputed'))
+      .reduce((a, v) => a + (isNum(v.valueClaimed) ? v.valueClaimed : 0), 0),
+    variationsApprovedValue: ds.logs.variations
+      .filter((v) => inScope(scope, v.project) && v.status === 'Approved' && inRange(v.decisionDate, p.yearStart, p.end))
+      .reduce((a, v) => a + (isNum(v.valueApproved) ? v.valueApproved : 0), 0),
+    hoursYtd: ds.logs.safety.filter((s) => inScope(scope, s.project) && inRange(s.month, p.yearStart, p.end)).reduce((a, s) => a + (isNum(s.hoursWorked) ? s.hoursWorked : 0), 0),
+    ltiYtd: ds.logs.safety.filter((s) => inScope(scope, s.project) && inRange(s.month, p.yearStart, p.end)).reduce((a, s) => a + (isNum(s.lti) ? s.lti : 0), 0),
   };
 }
 

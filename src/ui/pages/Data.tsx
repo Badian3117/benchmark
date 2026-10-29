@@ -83,6 +83,15 @@ export function DataPage() {
     if (p) setMsg([{ kind: 'ok', text: p }]);
   });
 
+  const exportPowerBi = () => run(async () => {
+    const ExcelJS = await loadExcelJS();
+    const { buildPowerBiWorkbook } = await import('../../io/powerbi.ts');
+    const wb = buildPowerBiWorkbook(ExcelJS, ds, period.month, today);
+    const buf = new Uint8Array(await wb.xlsx.writeBuffer());
+    const p = await saveBytes(`BenchMark_PowerBI_${period.month.slice(0, 7)}.xlsx`, buf, 'xlsx', 'Excel');
+    if (p) setMsg([{ kind: 'ok', text: p }]);
+  });
+
   const backup = () => run(async () => {
     await store.flush();
     const p = await saveBytes(`BenchMark_backup_${today}.sqlite`, store.exportBytes(), 'sqlite', 'BenchMark database');
@@ -135,6 +144,11 @@ export function DataPage() {
           <h2>{d.data.exportXlsx}</h2>
           <p className="muted">{d.data.exportHint}</p>
           <button className="btn primary" disabled={busy} onClick={exportXlsx}>{d.data.exportXlsx}</button>
+        </div>
+        <div className="card">
+          <h2>{d.data.powerBi}</h2>
+          <p className="muted">{d.data.powerBiHint}</p>
+          <button className="btn primary" disabled={busy} onClick={exportPowerBi}>{d.data.powerBi}</button>
         </div>
         <div className="card">
           <h2>{d.data.backup}</h2>

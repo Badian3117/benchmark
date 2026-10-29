@@ -126,6 +126,13 @@ app.whenReady().then(() => {
     if (!/^https:\/\//.test(String(url))) throw new Error('only https links');
     return shell.openExternal(url);
   });
+  ipcMain.handle('app:printToPdf', async (_e, defaultName) => {
+    const r = await dialog.showSaveDialog(win, { defaultPath: path.join(app.getPath('documents'), String(defaultName)), filters: [{ name: 'PDF', extensions: ['pdf'] }] });
+    if (r.canceled || !r.filePath) return null;
+    const pdf = await win.webContents.printToPDF({ pageSize: 'A4', printBackground: true, margins: { marginType: 'default' } });
+    atomicWrite(r.filePath, pdf);
+    return r.filePath;
+  });
   ipcMain.on('auth:ready', () => {
     rendererReady = true;
     if (pendingAuthUrl) { win.webContents.send('auth:callback', pendingAuthUrl); pendingAuthUrl = null; }

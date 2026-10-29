@@ -11,9 +11,11 @@ const LIST_LABEL: Record<ListKey, string> = {
   projectStatus: 'status', priority: 'priority', changeType: 'type', crDecision: 'decision', riskStatus: 'status', riskCategory: 'category',
   issueStatus: 'status', milestoneStatus: 'status', actionStatus: 'status', ciStatus: 'status', owners: 'owner', sites: 'site',
   stakeholderGroups: 'group', disciplines: 'discipline',
+  gateTypes: 'gate', gateStatus: 'status', instructionTypes: 'instructionType', variationStatus: 'status', explosiveProducts: 'product',
 };
 const LIST_LOG: Partial<Record<ListKey, string>> = {
   projectStatus: 'projects', riskStatus: 'risks', issueStatus: 'issues', milestoneStatus: 'milestones', actionStatus: 'actions', ciStatus: 'ci',
+  gateStatus: 'gates', variationStatus: 'variations',
 };
 
 export function SettingsPage() {

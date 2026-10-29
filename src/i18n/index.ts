@@ -49,13 +49,15 @@ export function makeI18n(lang: Lang) {
         case 'score': return f2.format(x);
         case 'count': return f0.format(x);
         case 'perProject': return f2.format(x);
+        case 'hours': return f1.format(x) + ' h';
+        case 'rate': return f2.format(x);
       }
     },
     /** difference between two KPI values, in the KPI's unit */
     kpiDelta: (x: number, unit: Unit) => {
       const a = Math.abs(x);
       const [fmt, shown, suffix] =
-        unit === 'pct' ? [f1, a * 100, ' pt'] : unit === 'days' ? [f1, a, lang === 'fr' ? ' j' : ' d'] : unit === 'count' ? [f0, a, ''] : unit === 'ratio' ? [f3, a, ''] : [f2, a, ''];
+        unit === 'pct' ? [f1, a * 100, ' pt'] : unit === 'days' ? [f1, a, lang === 'fr' ? ' j' : ' d'] : unit === 'hours' ? [f1, a, ' h'] : unit === 'count' ? [f0, a, ''] : unit === 'ratio' ? [f3, a, ''] : [f2, a, ''];
       const txt = fmt.format(shown);
       const zero = Number(txt.replace(/[^\d]/g, '')) === 0;
       return `${zero ? '±' : x > 0 ? '+' : '−'}${txt}${suffix}`;

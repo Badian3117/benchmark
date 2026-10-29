@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld('benchmark', {
   dataLocation: () => ipcRenderer.invoke('db:location'),
   showDataFolder: () => ipcRenderer.invoke('db:showFolder'),
   openExternal: (url) => ipcRenderer.invoke('app:openExternal', url),
+  printToPdf: (name) => ipcRenderer.invoke('app:printToPdf', name),
   onAuthCallback: (fn) => {
     ipcRenderer.on('auth:callback', (_e, url) => fn(url));
     ipcRenderer.send('auth:ready');

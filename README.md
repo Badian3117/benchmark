@@ -29,6 +29,24 @@ BenchMark keeps the workbook's monthly control loop – *set targets → capture
 
 The engine is checked against the workbook: `tests/engine.test.ts` reproduces **all 160 KPI values** (16 KPIs × Jan–Oct) that Excel calculated. The only differences are the two Success Rate months changed by fix 2 above.
 
+## Contractor module (v0.3)
+
+Built around the contractor–owner reality of a drill & blast contract:
+
+| Log | What the PM records | KPIs and alerts |
+|---|---|---|
+| Approval gates | each client authorisation (pattern, bench release, as-drilled, loading, all-clear …), submitted and authorised date-time | #19 gate lag (h); **alert beyond 48 h, critical beyond 96 h** |
+| Variation register | written or **verbal** instructions, written confirmation, value claimed / approved | #20 unconfirmed verbal instructions, #21 variation recovery; alerts for verbal instructions unconfirmed after 2 days, claims undecided after 30 days |
+| Drill & blast production | weekly metres, blasts, re-blasts, misfires vs plan | #22 metres vs plan, #23 blasts vs plan, #24 re-blast rate; misfire alerts |
+| Explosives reconciliation | monthly per product: opening, received, issued, designed, counted | #25 bulk explosives vs design (band ±3 %); **stock discrepancy alerts – critical for detonators / boosters** |
+| Safety & environment | monthly hours, LTI / MTI / RWI / FAI, near misses, PPV / airblast exceedances | #26 TRIFR, #27 LTIFR (per million hours, YTD), #28 blast vibration compliance; LTI = critical alert |
+| Rotation handovers | outgoing / incoming, overlap briefing, sign-off | #29 handover compliance |
+
+* **Dashboard order:** Safety & environment → Contractor operations → Project management.
+* **Monthly report:** a printable report (executive summary, every KPI group, trend charts, production, project health, gates, variations, explosives, risks, 4-week look-ahead) → **Export PDF**.
+* **Handover pack:** everything the incoming PM needs for one project, with *Record this handover* (pre-filled) and PDF export.
+* **Power BI:** *Export for Power BI* (Excel tables, long format, same numbers as the app) and a read-only `bm_reporting` database role for a live connection – see [docs/POWER_BI.md](docs/POWER_BI.md).
+
 ## Central server and roles (v0.2)
 
 All laptops sync with one central database (Supabase / PostgreSQL). **Setup guide: [docs/SUPABASE_SETUP.md](docs/SUPABASE_SETUP.md).**
@@ -72,7 +90,7 @@ src/io       Excel import / export
 src/i18n     en, fr
 src/ui       App, pages, components (charts are hand-built SVG)
 electron     main.cjs, preload.cjs
-tests        engine.test.ts (unit + Excel golden test), e2e*.cjs (UI), server/ (permissions + sync on real PostgreSQL)
+tests        engine.test.ts (unit + Excel golden test), contractor.test.ts, e2e*.cjs (UI), server/ (permissions + sync on real PostgreSQL)
 ```
 
 ## Development
@@ -95,4 +113,5 @@ Building the Windows installer on Linux needs `wine64` and `wine32:i386`. The Gi
 ## Roadmap
 
 * ~~Phase 2 – multi-PM sync~~ (v0.2).
-* **Phase 3 – contractor module:** approval-gate lag (alert above 48 h), variation register, drill metres / blast blocks vs plan, re-blast rate, explosives reconciliation, safety KPIs (TRIFR/LTIFR, PPV/airblast exceedances), rotation handover report, PDF monthly report, Power BI dataset.
+* ~~Phase 3 – contractor module, PDF reports, Power BI~~ (v0.3).
+* Next candidates: Minesched schedule import, weekly (rather than monthly) KPI view for production, client-facing read-only portal, push notifications for critical alerts.

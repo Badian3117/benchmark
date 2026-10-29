@@ -12,7 +12,7 @@ BenchMark laptops work offline and sync with one central database. This guide se
 ## 2. Create the database
 
 1. In the project: **SQL Editor → New query**.
-2. Paste the whole content of `supabase/migrations/20261029000000_benchmark.sql` and press **Run**. It is idempotent: running it again is harmless.
+2. Paste the whole content of `supabase/migrations/20261029000000_benchmark.sql` and press **Run**. It is idempotent: running it again is harmless. **After every BenchMark upgrade, run the new version of this file again** – it adds the new tables and columns without touching your data.
    (With the Supabase CLI instead: `supabase link --project-ref <ref>` then `supabase db push`.)
 3. **Database → Tables**: you should see `projects`, `costSchedule`, … `sites`, `profiles`, and a shield icon (row-level security enabled) on every table.
 
