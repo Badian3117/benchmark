@@ -48,7 +48,7 @@ From now on, everything else is done in BenchMark under **Users & sites**.
 
 In BenchMark (signed in as admin) → **Users & sites**:
 
-* **Sites**: add the 15 sites. The site name is what appears in the data and the filters (e.g. `KGM – Kouroussa`). Never delete a site: untick *Active* instead, so its history stays.
+* **Sites**: the CORICA sites are pre-written in `supabase/seed/sites.sql` – paste it in the SQL Editor and run it once (or add sites one by one here). The site name is what appears in the data and the filters (e.g. `KGM – Kouroussa`). Never delete a site: untick *Active* instead, so its history stays.
 * **Users**: create each person in Supabase (step 4.1), or let them sign in with Microsoft. Then in BenchMark set:
   * **Role**: *Administrator* (Project Controls), *Executive* (MD, CEO, COO, group managers: read every site), or *Project manager*.
   * **Name in the logs**: exactly the name used as *Project manager* on their projects (e.g. `A. Camara`). This is what lets a PM edit their own projects.
