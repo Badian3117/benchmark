@@ -10,25 +10,51 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
       - run: npm ci --legacy-peer-deps
       - run: npm test
       - run: npm run build
 
-  windows-installer:
-    needs: test
-    runs-on: windows-latest
+  server-tests:
+    # permissions (row-level security) and sync against a real PostgreSQL
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports: ['5432:5432']
+        options: --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      PGURL: postgresql://postgres@localhost:5432/postgres
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - run: npm ci --legacy-peer-deps
+      - name: migration is up to date with the app schema
+        run: npm run gen:sql && git diff --exit-code supabase/migrations
+      - run: npm run test:server
+
+  windows-installer:
+    needs: [test, server-tests]
+    runs-on: windows-latest
+    env:
+      # set these repository variables to ship an installer pre-configured for the server
+      VITE_BM_SUPABASE_URL: ${{ vars.BM_SUPABASE_URL }}
+      VITE_BM_SUPABASE_ANON_KEY: ${{ vars.BM_SUPABASE_ANON_KEY }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
       - run: npm ci --legacy-peer-deps
       - run: npm run dist:win
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: BenchMark-Setup
           path: release/BenchMark-Setup-*.exe

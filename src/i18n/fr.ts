@@ -2,10 +2,49 @@ import type { Dict } from './en.ts';
 
 export const fr: Dict = {
   app: { tagline: 'Pilotage des KPI projets pour sous-traitants miniers' },
+  roles: { pending: 'En attente d’approbation', pm: 'Chef de projet', executive: 'Direction (lecture seule)', admin: 'Administrateur' },
+  auth: {
+    title: 'Connexion à BenchMark', email: 'E-mail', password: 'Mot de passe', signIn: 'Se connecter', microsoft: 'Se connecter avec Microsoft',
+    or: 'ou', server: 'Serveur', changeServer: 'Changer de serveur', working: 'Connexion…', failed: 'Échec de la connexion : {s}',
+    browserOpened: 'La connexion Microsoft s’est ouverte dans votre navigateur – revenez ici une fois terminé.',
+    pendingTitle: 'Votre compte attend une approbation',
+    pendingText: 'Vous êtes connecté en tant que {email}. Un administrateur (Contrôle de projets) doit vous attribuer un rôle et vos sites avant que vous puissiez utiliser BenchMark.',
+    retry: 'Vérifier à nouveau', signOut: 'Se déconnecter', offlineProfile: 'Hors ligne – utilisation de vos dernières autorisations connues.',
+    standalone: 'Utiliser sans serveur (autonome sur ce poste)',
+    changePassword: 'Changer le mot de passe', newPassword: 'Nouveau mot de passe (10 caractères ou plus)', repeatPassword: 'Répéter le nouveau mot de passe',
+    passwordShort: 'Utilisez au moins 10 caractères.', passwordMismatch: 'Les deux mots de passe diffèrent.', passwordChanged: 'Mot de passe modifié.',
+  },
+  server: {
+    title: 'Connexion au serveur', intro: 'La base centrale (Supabase) avec laquelle tous les postes se synchronisent. Votre administrateur IT / Contrôle de projets fournit ces deux valeurs.',
+    url: 'URL du serveur', key: 'Clé publique (anon)', connect: 'Enregistrer et connecter', disconnect: 'Déconnecter ce poste', builtIn: 'Cet installateur est préconfiguré pour {url}.',
+    connected: 'Connecté à {url}', confirmDisconnect: 'Déconnecter ? Ce poste repasse en mode autonome (vos données synchronisées restent sur le serveur).',
+  },
+  sync: {
+    title: 'Synchronisation', synced: 'Synchronisé {t}', syncing: 'Synchronisation…', offline: 'Hors ligne', authFailed: 'Session expirée – reconnectez-vous', error: 'Erreur de synchronisation',
+    pending: '{n} modification(s) en attente', issues: '{n} à examiner', now: 'Synchroniser', last: 'Dernière synchro', never: 'jamais', account: 'Compte',
+    role: 'Rôle', sites: 'Sites', allSites: 'Tous les sites', issuesTitle: 'Décisions à prendre',
+    noIssues: 'Rien à examiner – toutes les modifications ont été acceptées par le serveur.',
+    conflict: 'Modifié d’abord par quelqu’un d’autre', rejected: 'Refusé par le serveur', mine: 'Ma version', theirs: 'Version du serveur',
+    keepMine: 'Garder la mienne', keepServer: 'Prendre celle du serveur', discard: 'Annuler ma modification', retry: 'Réessayer',
+    intro: 'BenchMark fonctionne hors ligne. Les modifications partent au serveur dès qu’il y a une connexion ; rien n’est jamais écrasé sans le dire.',
+    readOnly: 'Lecture seule : votre rôle permet de consulter tous les sites, pas de modifier.', notYours: 'Lecture seule : cet enregistrement appartient à un autre chef de projet.',
+    lastReport: 'Dernière synchro : {pushed} envoyés · {pulled} reçus · {conflicts} conflits · {rejected} refusés',
+  },
+  admin: {
+    title: 'Utilisateurs & sites', intro: 'Rôles : les administrateurs gèrent tout ; la direction (DG, PDG, COO, managers de groupe) consulte tous les sites ; les chefs de projet modifient leurs projets et consultent leurs sites.',
+    users: 'Utilisateurs', sites: 'Sites', name: 'Nom', ownerName: 'Nom dans les registres', ownerHint: 'Doit correspondre au « Chef de projet » de ses projets (ex. A. Camara).',
+    role: 'Rôle', active: 'Actif', userSites: 'Sites', save: 'Enregistrer', saved: 'Enregistré', invite: 'Nouveaux utilisateurs : créez-les dans le tableau de bord Supabase (Authentication › Users › Add user › Create new user, avec un mot de passe provisoire qu’ils changent dans Synchronisation › Compte), ou laissez-les se connecter avec Microsoft. Dans les deux cas ils apparaissent ici « en attente d’approbation » jusqu’à ce que vous leur donniez un rôle.',
+    siteCode: 'Site', siteName: 'Description', addSite: 'Ajouter un site', loadFailed: 'Chargement impossible : {s}', notAdmin: 'Seuls les administrateurs gèrent les utilisateurs et les sites.',
+  },
+  sites: {
+    title: 'Vue des sites', intro: 'Tous les sites d’un coup d’œil pour le mois sélectionné. Cliquez sur un site pour ouvrir son tableau de bord.',
+    site: 'Site', projects: 'Projets', active: 'Actifs', kpis: 'KPI V / O / R', health: 'Projets V / O / R', cpi: 'CPI (cumul)', spi: 'SPI (cumul)',
+    alerts: 'Critiques / sérieux', noSite: 'Sans site',
+  },
   nav: {
     overview: 'Vue d’ensemble', dashboard: 'Tableau de bord', tracking: 'Suivi des KPI', trends: 'Tendances', health: 'Santé des projets',
     capture: 'Saisie des données', control: 'Contrôle', targets: 'Objectifs', quality: 'Qualité des données', settings: 'Paramètres',
-    data: 'Import / export', audit: 'Journal d’audit', guide: 'Guide',
+    data: 'Import / export', audit: 'Journal d’audit', guide: 'Guide', sites: 'Vue des sites', sync: 'Synchronisation', admin: 'Utilisateurs & sites',
   },
   common: {
     save: 'Enregistrer', cancel: 'Annuler', delete: 'Supprimer', edit: 'Modifier', add: 'Ajouter', new: 'Nouveau', search: 'Rechercher…', close: 'Fermer',

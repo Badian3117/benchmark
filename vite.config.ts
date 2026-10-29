@@ -5,5 +5,5 @@ export default defineConfig({
   plugins: [react()],
   base: './',
   build: { outDir: 'dist', chunkSizeWarningLimit: 2000 },
-  test: { include: ['tests/**/*.test.ts'] },
+  test: { include: ['tests/**/*.test.ts'], fileParallelism: false },
 });

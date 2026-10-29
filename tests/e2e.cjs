@@ -68,7 +68,7 @@ const ok = (c, m) => { if (!c) { console.log('FAIL ' + m); process.exitCode = 1;
   await p.click('.nav-item:has-text("Issues")');
   await p.locator('tbody tr', { has: p.locator('td:text-is("I-001")') }).click();
   ok(await p.locator('.notice.warn:has-text("locked")').isVisible(), 'locked-period notice shown');
-  ok(await p.locator('.drawer-foot button:has-text("Save")').isDisabled(), 'save disabled in locked period');
+  ok((await p.locator('.drawer-foot button:has-text("Save")').count()) === 0, 'no Save in a locked period');
   await p.keyboard.press('Escape');
 
   // 6. audit trail and persistence across reload

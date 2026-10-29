@@ -321,6 +321,7 @@ export const LOGS: LogDef[] = [
     feeds: [9, 14],
     fields: [
       { key: 'month', type: 'month', required: true },
+      { key: 'site', type: 'list', list: 'sites' },
       { key: 'team', type: 'text', required: true },
       { key: 'discipline', type: 'list', list: 'disciplines' },
       { key: 'available', type: 'number', required: true },
@@ -408,6 +409,7 @@ export const LOGS: LogDef[] = [
     fields: [
       { key: 'code', type: 'text', required: true },
       { key: 'proposed', type: 'date', required: true },
+      { key: 'site', type: 'list', list: 'sites' },
       { key: 'initiative', type: 'text', required: true },
       { key: 'kpi', type: 'kpi' },
       { key: 'owner', type: 'list', list: 'owners' },
@@ -432,6 +434,7 @@ export const LOGS: LogDef[] = [
       { key: 'raised', type: 'date', required: true },
       { key: 'kpi', type: 'kpi', required: true },
       { key: 'project', type: 'project' },
+      { key: 'site', type: 'list', list: 'sites', formOnly: true },
       { key: 'before', type: 'number' },
       { key: 'rootCause', type: 'longtext', required: true },
       { key: 'action', type: 'longtext', required: true },
@@ -471,6 +474,14 @@ export const LOGS: LogDef[] = [
     computed: [],
   },
 ];
+
+/** How a log's rows are attached to a site on the server (drives permissions). */
+export type SiteScope = 'project' | 'site' | 'projectOrSite' | 'self' | 'global';
+export const SITE_SCOPE: Record<LogKey, SiteScope> = {
+  projects: 'self', costSchedule: 'project', changes: 'project', risks: 'project', issues: 'project', surveys: 'project',
+  resources: 'site', milestones: 'project', quality: 'project', benefits: 'project', ci: 'site', actions: 'projectOrSite',
+  targetRevisions: 'global',
+};
 
 export const LOG_BY_KEY = Object.fromEntries(LOGS.map((l) => [l.key, l])) as Record<LogKey, LogDef>;
 

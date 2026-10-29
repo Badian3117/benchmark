@@ -3,6 +3,9 @@ import { monthStart, yearMonths } from '../../engine/dates.ts';
 import { LOGS, type ListKey, type Settings } from '../../engine/schema.ts';
 import { useI18n } from '../../i18n/index.ts';
 import { useApp } from '../context.ts';
+import { useSession } from '../session.ts';
+import { isAdmin } from '../../engine/permissions.ts';
+import { builtInServer, saveServerConfig, serverConfig } from '../../sync/session.ts';
 
 const LIST_LABEL: Record<ListKey, string> = {
   projectStatus: 'status', priority: 'priority', changeType: 'type', crDecision: 'decision', riskStatus: 'status', riskCategory: 'category',
@@ -15,6 +18,8 @@ const LIST_LOG: Partial<Record<ListKey, string>> = {
 
 export function SettingsPage() {
   const { ds, store } = useApp();
+  const session = useSession();
+  const admin = isAdmin(session.who);
   const i = useI18n();
   const d = i.d;
   const s = ds.settings;
@@ -49,15 +54,17 @@ export function SettingsPage() {
   return (
     <div style={{ maxWidth: 1100 }}>
       <h1>{d.settings.title}</h1>
+      <ServerSection />
       <div className="card" style={{ margin: '16px 0' }}>
         <h2>{d.settings.general}</h2>
+        <fieldset disabled={!admin} style={{ border: 0, padding: 0, margin: 0 }}>
         <div className="kv">
           <label>{d.settings.orgName}</label>
           <input type="text" defaultValue={s.orgName} onBlur={(e) => e.target.value !== s.orgName && update({ orgName: e.target.value })} />
           <label>{d.settings.preparedBy}</label>
           <input type="text" defaultValue={s.preparedBy} onBlur={(e) => e.target.value !== s.preparedBy && update({ preparedBy: e.target.value })} />
-          <label>{d.settings.userName}</label>
-          <input type="text" defaultValue={s.userName} onBlur={(e) => e.target.value !== s.userName && update({ userName: e.target.value })} />
+          {session.mode === 'standalone' && <label>{d.settings.userName}</label>}
+          {session.mode === 'standalone' && <input type="text" defaultValue={s.userName} onBlur={(e) => e.target.value !== s.userName && update({ userName: e.target.value })} />}
           <label>{d.settings.currency}</label>
           <input type="text" defaultValue={s.currency} onBlur={(e) => e.target.value !== s.currency && update({ currency: e.target.value.toUpperCase() })} />
           <label>{d.settings.yearStart}</label>
@@ -77,9 +84,11 @@ export function SettingsPage() {
             {months.map((m) => <option key={m} value={m}>{i.monthLabel(m, true)}</option>)}
           </select>
         </div>
+        </fieldset>
       </div>
 
       <div className="card">
+        <fieldset disabled={!admin} style={{ border: 0, padding: 0, margin: 0 }}>
         <h2>{d.settings.lists}</h2>
         <p className="faint">{d.settings.listsHint}</p>
         {notes.map((n) => <div key={n} className="notice warn">{n}</div>)}
@@ -91,6 +100,33 @@ export function SettingsPage() {
             </div>
           ))}
         </div>
+        </fieldset>
+      </div>
+    </div>
+  );
+}
+
+/** Where this laptop syncs to. Pre-configured installers cannot be changed here. */
+function ServerSection() {
+  const i = useI18n();
+  const d = i.d.server;
+  const cur = serverConfig();
+  const [url, setUrl] = useState(cur?.url ?? '');
+  const [key, setKey] = useState(cur?.anonKey ?? '');
+  if (builtInServer()) return <div className="card" style={{ marginTop: 16 }}><h2>{d.title}</h2><p className="muted">{i.t(d.builtIn, { url: cur!.url })}</p></div>;
+  return (
+    <div className="card" style={{ marginTop: 16 }}>
+      <h2>{d.title}</h2>
+      <p className="muted">{d.intro}</p>
+      <div className="kv">
+        <label>{d.url}</label>
+        <input type="text" placeholder="https://xxxx.supabase.co" value={url} onChange={(e) => setUrl(e.target.value)} />
+        <label>{d.key}</label>
+        <input type="text" value={key} onChange={(e) => setKey(e.target.value)} />
+      </div>
+      <div className="toolbar" style={{ marginTop: 12 }}>
+        <button className="btn primary" disabled={!/^https:\/\/.+/.test(url) || key.length < 20} onClick={() => { saveServerConfig({ url, anonKey: key }); location.reload(); }}>{d.connect}</button>
+        {cur && <button className="btn danger" onClick={() => { if (confirm(d.confirmDisconnect)) { saveServerConfig(null); location.reload(); } }}>{d.disconnect}</button>}
       </div>
     </div>
   );

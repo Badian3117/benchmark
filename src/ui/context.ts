@@ -6,7 +6,7 @@ import type { LogKey, Row } from '../engine/schema.ts';
 import type { Finding } from '../engine/validate.ts';
 import type { Store } from '../data/store.ts';
 
-export type Page = 'dashboard' | 'tracking' | 'trends' | 'health' | 'log' | 'targets' | 'quality' | 'settings' | 'data' | 'audit' | 'guide';
+export type Page = 'dashboard' | 'tracking' | 'trends' | 'health' | 'log' | 'targets' | 'quality' | 'settings' | 'data' | 'audit' | 'guide' | 'sites' | 'sync' | 'admin';
 
 export interface Filter {
   site?: string;

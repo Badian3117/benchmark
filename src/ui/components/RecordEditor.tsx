@@ -8,6 +8,8 @@ import { useI18n } from '../../i18n/index.ts';
 import { newId, nextCode } from '../../io/ids.ts';
 import { useApp } from '../context.ts';
 import { Drawer, formatValue } from './common.tsx';
+import { useSession } from '../session.ts';
+import { canCreate, canEdit, presetFor, writableProjects } from '../../engine/permissions.ts';
 
 /** For corrective actions the before/after values are entered in the KPI's own unit (82 for 82 %). */
 function scaleFor(log: LogKey, field: string, row: Row) {
@@ -18,6 +20,7 @@ function scaleFor(log: LogKey, field: string, row: Row) {
 
 export function RecordEditor({ log, rowId, preset, onClose }: { log: LogKey; rowId: string | null; preset?: Partial<Row>; onClose: () => void }) {
   const { store, ds, today, period } = useApp();
+  const { who } = useSession();
   const i = useI18n();
   const d = i.d;
   const def = LOG_BY_KEY[log];
@@ -36,7 +39,7 @@ export function RecordEditor({ log, rowId, preset, onClose }: { log: LogKey; row
     if (log === 'projects') r.status = 'Active';
     if (log === 'milestones') r.status = 'Not started';
     if (log === 'ci') r.status = 'Proposed';
-    return { ...r, ...preset };
+    return { ...r, ...presetFor(log, who), ...preset };
   });
   const [touched, setTouched] = useState(false);
 
@@ -45,18 +48,21 @@ export function RecordEditor({ log, rowId, preset, onClose }: { log: LogKey; row
   for (const f of findings) byField.set(f.field ?? '', [...(byField.get(f.field ?? '') ?? []), f]);
   const errors = findings.filter((f) => f.severity === 'error');
   const lockedNow = isLocked(ds, log, row) || (existing ? isLocked(ds, log, existing) : false);
+  // the server enforces the same rule; here it decides whether the form is editable
+  const allowed = existing ? canEdit(ds, log, existing, who) : canCreate(log, who);
+  const readOnly = lockedNow || !allowed;
   const ctx = makeCtx(ds, period.asOf);
 
   const set = (k: string, v: unknown) => setRow((r) => ({ ...r, [k]: v }));
 
   const save = () => {
     setTouched(true);
-    if (errors.length || lockedNow) return;
+    if (errors.length || readOnly) return;
     store.upsert(log, row);
     onClose();
   };
   const remove = () => {
-    if (!existing || lockedNow) return;
+    if (!existing || readOnly) return;
     if (confirm(d.common.deleteConfirm)) {
       store.remove(log, existing.id);
       onClose();
@@ -71,7 +77,7 @@ export function RecordEditor({ log, rowId, preset, onClose }: { log: LogKey; row
 
   const input = (f: FieldDef) => {
     const v = row[f.key];
-    const common = { id: `f-${f.key}`, disabled: lockedNow, onBlur: () => setTouched(true) };
+    const common = { id: `f-${f.key}`, disabled: readOnly, onBlur: () => setTouched(true) };
     switch (f.type) {
       case 'longtext':
         return <textarea {...common} value={String(v ?? '')} onChange={(e) => set(f.key, e.target.value || null)} />;
@@ -113,7 +119,7 @@ export function RecordEditor({ log, rowId, preset, onClose }: { log: LogKey; row
         return (
           <select {...common} value={String(v ?? '')} onChange={(e) => set(f.key, e.target.value || null)}>
             <option value="">{d.form.select}</option>
-            {ds.logs.projects.map((p) => <option key={p.id} value={String(p.code)}>{String(p.code)} – {String(p.name ?? '')}</option>)}
+            {(readOnly ? ds.logs.projects : writableProjects(ds, who)).map((p) => <option key={p.id} value={String(p.code)}>{String(p.code)} – {String(p.name ?? '')}</option>)}
           </select>
         );
       case 'kpi':
@@ -143,15 +149,16 @@ export function RecordEditor({ log, rowId, preset, onClose }: { log: LogKey; row
       onClose={onClose}
       footer={
         <>
-          {existing && <button className="btn danger left" onClick={remove} disabled={lockedNow}>{d.common.delete}</button>}
+          {existing && !readOnly && <button className="btn danger left" onClick={remove}>{d.common.delete}</button>}
           {touched && errors.length > 0 && <span className="save-state err">{d.common.fixFirst}</span>}
           <button className="btn" onClick={onClose}>{d.common.cancel}</button>
-          <button className="btn primary" onClick={save} disabled={lockedNow}>{d.common.save}</button>
+          {!readOnly && <button className="btn primary" onClick={save}>{d.common.save}</button>}
         </>
       }
     >
       <p className="muted">{d.logs[log].desc}</p>
       {lockedNow && <div className="notice warn">{d.form.lockedHint}</div>}
+      {!lockedNow && !allowed && <div className="notice info">{who?.role === 'executive' ? d.sync.readOnly : d.sync.notYours}</div>}
       <div className="form-grid">
         {def.fields.map((f) => {
           const fs = byField.get(f.key) ?? [];

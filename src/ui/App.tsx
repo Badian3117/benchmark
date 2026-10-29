@@ -21,10 +21,15 @@ import { DataPage } from './pages/Data.tsx';
 import { AuditPage } from './pages/Audit.tsx';
 import { Guide } from './pages/Guide.tsx';
 import { desktop } from '../data/persistence.ts';
+import { SessionContext, type SessionState } from './session.ts';
+import { SyncChip } from './components/SyncChip.tsx';
+import { SyncPage } from './pages/Sync.tsx';
+import { AdminPage } from './pages/Admin.tsx';
+import { SitesOverview } from './pages/Sites.tsx';
 
 type Theme = 'system' | 'light' | 'dark';
 
-export function App({ store }: { store: Store }) {
+export function App({ store, session }: { store: Store; session: SessionState }) {
   useSyncExternalStore(store.subscribe, store.getVersion);
   const ds = store.ds;
   const today = todayISO();
@@ -54,6 +59,10 @@ export function App({ store }: { store: Store }) {
   const alerts = useMemo(() => buildAlerts(ds, tracking, period, scope), [ds, tracking, period, scope]);
   const findings = useMemo(() => validateAll(ds, today), [ds, today]);
 
+  // pages that only exist when connected (or for admins) fall back to the dashboard
+  const available = (p: Page) => (p === 'sync' ? session.mode === 'connected' : p === 'admin' ? !!session.admin : true);
+  if (!available(page)) setTimeout(() => setPage('dashboard'), 0);
+
   const go = useCallback((p: Page, l?: LogKey) => { setPage(p); if (l) setLog(l); }, []);
   const edit = useCallback((l: LogKey, rowId: string | null, preset?: Partial<Row>) => setEditing({ log: l, rowId, preset }), []);
 
@@ -80,6 +89,7 @@ export function App({ store }: { store: Store }) {
 
   return (
     <I18nContext.Provider value={i18n}>
+      <SessionContext.Provider value={session}>
       <AppContext.Provider value={state}>
         <div className="app">
           <aside className="sidebar">
@@ -93,6 +103,7 @@ export function App({ store }: { store: Store }) {
             <div className="nav-group">
               <div className="nav-title">{d.nav.overview}</div>
               <NavItem p="dashboard" label={d.nav.dashboard} badge={alerts.filter((a) => a.severity !== 'warning').length} />
+              {ds.settings.lists.sites.length > 1 && <NavItem p="sites" label={d.nav.sites} />}
               <NavItem p="health" label={d.nav.health} />
               <NavItem p="tracking" label={d.nav.tracking} />
               <NavItem p="trends" label={d.nav.trends} />
@@ -111,11 +122,19 @@ export function App({ store }: { store: Store }) {
               <NavItem p="audit" label={d.nav.audit} />
             </div>
             <div className="nav-group">
+              {session.mode === 'connected' && <NavItem p="sync" label={d.nav.sync} badge={session.sync?.status.issues} err />}
+              {session.admin && <NavItem p="admin" label={d.nav.admin} />}
               <NavItem p="data" label={d.nav.data} />
               <NavItem p="settings" label={d.nav.settings} />
               <NavItem p="guide" label={d.nav.guide} />
             </div>
             <div className="sidebar-foot">
+              {session.who && (
+                <div style={{ marginBottom: 6, color: '#c9d2dd' }}>
+                  {session.who.fullName || session.who.email}
+                  <div>{d.roles[session.who.role]}</div>
+                </div>
+              )}
               BenchMark {desktop?.version ?? 'preview'} · {ds.settings.orgName}
             </div>
           </aside>
@@ -150,7 +169,7 @@ export function App({ store }: { store: Store }) {
                 </select>
               </label>
               <div className="spacer" />
-              <SaveState store={store} />
+              {session.sync ? <SyncChip sync={session.sync} onOpen={() => go('sync')} /> : <SaveState store={store} />}
               <div className="seg" aria-label={d.common.language}>
                 <button className={lang === 'en' ? 'on' : ''} onClick={() => setLang('en')}>EN</button>
                 <button className={lang === 'fr' ? 'on' : ''} onClick={() => setLang('fr')}>FR</button>
@@ -162,7 +181,8 @@ export function App({ store }: { store: Store }) {
               </select>
             </header>
             <main className="content">
-              {store.storageKind === 'browser' && <div className="notice warn">{d.common.previewMode}</div>}
+              {store.storageKind === 'browser' && session.mode === 'standalone' && <div className="notice warn">{d.common.previewMode}</div>}
+              {session.offlineProfile && <div className="notice warn">{d.auth.offlineProfile}</div>}
               {page === 'dashboard' && <Dashboard />}
               {page === 'health' && <Health />}
               {page === 'tracking' && <Tracking />}
@@ -174,11 +194,15 @@ export function App({ store }: { store: Store }) {
               {page === 'data' && <DataPage />}
               {page === 'audit' && <AuditPage />}
               {page === 'guide' && <Guide />}
+              {page === 'sites' && <SitesOverview />}
+              {page === 'sync' && session.mode === 'connected' && <SyncPage />}
+              {page === 'admin' && session.admin && <AdminPage />}
             </main>
           </div>
         </div>
         {editing && <RecordEditor {...editing} onClose={() => setEditing(null)} />}
       </AppContext.Provider>
+      </SessionContext.Provider>
     </I18nContext.Provider>
   );
 }
